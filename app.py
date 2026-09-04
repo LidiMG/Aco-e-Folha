@@ -331,9 +331,7 @@ def validate_submission(activities_payload, photo_file, forma_pagamento):
 
     tem_foto = bool(photo_file and photo_file.filename)
 
-    if forma_pagamento == "PIX" and not tem_foto:
-        errors.append("Anexe a foto do comprovante do PIX.")
-    elif tem_foto:
+    if tem_foto:
         ext = photo_file.filename.rsplit(".", 1)[-1].lower() if "." in photo_file.filename else ""
         if ext not in ALLOWED_PHOTO_EXTENSIONS:
             errors.append("Formato de foto não suportado. Use JPG, PNG, WEBP ou HEIC.")

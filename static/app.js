@@ -352,10 +352,6 @@ document.addEventListener("DOMContentLoaded", () => {
       clientErrors.push("Informe a forma de pagamento (PIX ou Dinheiro).");
     }
 
-    if (pagamentoChecked && pagamentoChecked.value === "PIX" && !photoInput.files[0]) {
-      clientErrors.push("Anexe a foto do comprovante do PIX.");
-    }
-
     const { activities, errors: activityErrors } = collectActivitiesAndValidate();
     clientErrors.push(...activityErrors);
 

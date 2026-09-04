@@ -38,8 +38,10 @@
     {% for row in top3 %}
     <div class="podium-item podium-item--{{ loop.index }}">
       <span class="podium-item__place">{{ loop.index }}º</span>
-      <span class="podium-item__name">{{ row.nome }}</span>
-      <span class="podium-item__cla">{{ row.cla }}</span>
+      <span class="podium-item__nameblock">
+        <span class="podium-item__name">{{ row.nome }}</span>
+        <span class="podium-item__meta">{{ row.cla }}{% if row.telefone %} · {{ row.telefone }}{% endif %}</span>
+      </span>
       <span class="podium-item__score">
         {% if row.total is defined %}{{ row.total }} pts{% else %}Posição {{ row.posicao }}{% endif %}
       </span>

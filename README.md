@@ -23,7 +23,7 @@ alimenta a mesma planilha Google Sheets, e boa parte se alimenta sozinha.
 O app tem uma tela inicial com três caminhos:
 
 - **Aquisições** (`/aquisicao`, exige login com Google) — a equipe de
-  atendimento registra cada compra: foto do comprovante (só quando é PIX),
+  atendimento registra cada compra: foto do comprovante (opcional),
   atividades e quantidades (com preço calculado automaticamente), forma de
   pagamento, e nome/telefone/clã de quem vai competir, quando aplicável.
   Tudo isso vira uma linha na planilha, por atividade.
@@ -279,9 +279,10 @@ que o app precisa ler ou escrever nela — não precisa criar manualmente.
   pras atividades com os dois modos, ou um número único pras demais),
   formatados como moeda brasileira ("R$ 20,00"). Se faltar um preço,
   deixe `None` no lugar — a linha fica só com essas colunas vazias.
-- **forma_pagamento**: PIX ou Dinheiro, uma vez por compra. **A foto só é
-  obrigatória no PIX** — em Dinheiro não existe comprovante de
-  transferência, e a etapa da foto nem aparece na tela.
+- **forma_pagamento**: PIX ou Dinheiro, uma vez por compra. **A foto é
+  sempre opcional**, em qualquer forma de pagamento — o gestor preferiu
+  assim pra não formar fila esperando a foto. Em Dinheiro, a etapa da
+  foto nem aparece na tela (não existe comprovante de transferência ali).
 - **nome_competidor / telefone_competidor / cla_competidor**: preenchidos
   pra todas as competições (as 3 físicas, só em modo Competição; as 3
   culturais, sempre). Nome e telefone (com DDD) são obrigatórios; **clã é
@@ -332,7 +333,11 @@ falhou.
 - **Resultados** (`/resultados`): Top 3 automático de cada torneio (por
   total no Arco/Machado, por posição no Swordplay), e pra cada atividade
   cultural uma lista alfabética simples dos inscritos, sem nota — o
-  resultado ali é por voto popular, fora do app.
+  resultado ali é por voto popular, fora do app. Em ambos os casos, o
+  telefone do competidor aparece junto (nome/clã/telefone) — os
+  apresentadores usam pra chamar/contatar quem ganhou. Isso é diferente
+  de Competições, onde o telefone fica escondido de propósito (os
+  instrutores não precisam dele, só poluiria a tela).
 
 ## 11. Próximos passos possíveis (não implementados ainda)
 
