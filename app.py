@@ -12,11 +12,12 @@ from dotenv import load_dotenv
 from PIL import Image
 
 try:
-    # pillow-heif NÃO está no requirements.txt por padrão: no Windows ele
-    # precisa compilar uma biblioteca nativa (exige MSYS2/toolchain C++), o
-    # que trava a instalação sem necessidade — a câmera do Android não gera
-    # HEIC (isso é praticamente só iPhone). Se um dia precisar, instale à
-    # parte (`pip install pillow-heif`) que este bloco já ativa sozinho.
+    # pillow-heif NÃO está no requirements.txt: no Windows local ele exige
+    # compilar uma biblioteca nativa (MSYS2/toolchain C++) e trava a
+    # instalação. No servidor (Render, Linux) existe pacote pronto, então
+    # é instalado à parte, direto no Build Command do Render — ver README,
+    # seção 6. Localmente, o app funciona normal sem essa lib (só não
+    # comprime fotos .heic de iPhone; JPEG/PNG do Android não é afetado).
     from pillow_heif import register_heif_opener
     register_heif_opener()  # permite ao Pillow abrir fotos .heic, se a lib estiver instalada
 except ImportError:
@@ -161,8 +162,18 @@ def get_drive_service():
         creds = Credentials.from_authorized_user_file(GOOGLE_DRIVE_TOKEN_FILE, DRIVE_UPLOAD_SCOPES)
         if creds.expired and creds.refresh_token:
             creds.refresh(GoogleAuthRequest())
-            with open(GOOGLE_DRIVE_TOKEN_FILE, "w") as f:
-                f.write(creds.to_json())
+            # Tenta salvar o token renovado de volta no arquivo, pra não
+            # precisar renovar nas próximas vezes. Isso funciona localmente,
+            # mas em servidores como o Render o arquivo pode estar montado
+            # como "só leitura" (Secret Files) — nesse caso, ignoramos o
+            # erro: a renovação já aconteceu na memória, e é suficiente
+            # pra essa execução. Na próxima, o processo renova de novo a
+            # partir do refresh_token original, que continua válido.
+            try:
+                with open(GOOGLE_DRIVE_TOKEN_FILE, "w") as f:
+                    f.write(creds.to_json())
+            except OSError:
+                pass
 
         _drive_service = build("drive", "v3", credentials=creds)
     return _drive_service

@@ -187,16 +187,27 @@ nas "Origens JavaScript autorizadas" do Client ID (passo 3.1).
 
 ## 6. Colocar no ar para a equipe usar de verdade
 
-Rodar só no seu computador não é viável no dia do evento. Para um link fixo,
-acessível de qualquer lugar com internet, duas opções simples e gratuitas
-para o volume de uma equipe pequena:
+Rodar só no seu computador não é viável no dia do evento. O projeto está
+hospedado gratuitamente no **Render** (plano Free, sem domínio próprio —
+o link definitivo é do tipo `https://SEU-SERVICO.onrender.com`).
 
-- **Render** ou **Railway**: conecta o repositório Git, define as
-  variáveis de ambiente do passo 4 no painel do serviço, e o deploy é
-  automático a cada push. O `gunicorn` já está no `requirements.txt` para
-  isso (comando de start: `gunicorn app:app`).
-- **PythonAnywhere**: bom se quiser algo ainda mais simples, sem lidar com
-  `gunicorn`/`Procfile`.
+- **Build Command**: `pip install -r requirements.txt && pip install pillow-heif`
+  — o `pillow-heif` fica de fora do `requirements.txt` de propósito (no
+  Windows local ele exige compilar C++ e trava a instalação), mas no
+  Linux do Render existe pacote pronto, então é instalado só lá, à parte.
+  Isso é o que permite o app comprimir fotos `.heic` (comuns em iPhone)
+  também — sem esse passo extra, fotos de iPhone ainda funcionam, só não
+  são comprimidas antes do upload.
+- **Start Command**: `gunicorn app:app --workers 3` — 3 processos em
+  paralelo, pra equipe conseguir enviar várias compras ao mesmo tempo sem
+  fila. Cabe tranquilo nos 512MB de RAM do plano gratuito.
+- **Plano Free**: o serviço "dorme" depois de 15 minutos sem acesso, e
+  demora uns 30-60 segundos pra acordar no primeiro acesso seguinte —
+  isso é normal, não é erro. Ficar dias sem uso não tem problema nenhum,
+  nem risco do serviço ser apagado por inatividade.
+- Alternativas equivalentes, caso o Render dê algum problema no futuro:
+  **Railway** (mesma lógica de Git + variáveis de ambiente) ou
+  **PythonAnywhere** (mais simples ainda, sem lidar com `gunicorn`).
 
 ### E os arquivos de credenciais (o `.json` da service account e o `drive_token.json`)?
 
