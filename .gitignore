@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Credenciais — NUNCA devem ir para o Git
+*service-account*.json
+client_secret.json
+drive_token.json
+
+# Convenção do projeto: a chave .json da service account (algo como
+# "aco-e-folha-XXXXXXXXXXXX.json") fica FORA desta pasta — um nível acima,
+# na pasta do projeto como um todo — e não dentro de evento-app/. Isso é
+# a proteção mais forte que existe: um arquivo que nem está dentro da
+# pasta versionada não tem como ir pro Git por engano, mesmo que o nome
+# dele não bata com nenhum padrão listado aqui.

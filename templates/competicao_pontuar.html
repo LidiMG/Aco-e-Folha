@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>{{ cfg.label }} — Aço &amp; Folha</title>
+<meta name="theme-color" content="#3B5D42">
+<link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>{{ cfg.label }}</h1>
+  <p class="topbar__subtitle">Lançamento de notas</p>
+  <p class="topbar__user">
+    <a href="{{ url_for('competicoes') }}">‹ Competições</a>
+  </p>
+</header>
+
+<main class="wrap">
+
+  {% if erro %}
+  <div class="banner banner--error">{{ erro }}</div>
+  {% endif %}
+
+  <div id="errorBanner" class="banner banner--error" hidden>
+    <ul id="errorList"></ul>
+  </div>
+
+  <p class="section-hint">
+    Toque num nome pra lançar a nota. Novos inscritos não aparecem sozinhos —
+    <a href="javascript:location.reload()">atualize a página</a> de tempos em tempos.
+  </p>
+
+  {% if not rows %}
+  <p class="empty-hint">Ninguém inscrito nesta atividade ainda.</p>
+  {% endif %}
+
+  <div class="competitor-list">
+    {% for row in rows %}
+    <div class="competitor-row {{ 'competitor-row--done' if row.total }}" data-row="{{ row._row }}">
+      {% if row.total %}
+        <div class="competitor-row__header competitor-row__header--locked">
+          <span class="competitor-row__nameblock">
+            <span class="competitor-row__name">{{ row.nome }}</span>
+            <span class="competitor-row__cla">{{ row.cla }}</span>
+          </span>
+          <span class="competitor-row__total">Total: {{ row.total }}</span>
+        </div>
+      {% else %}
+        <button type="button" class="competitor-row__header" data-toggle>
+          <span class="competitor-row__name">{{ row.nome }}</span>
+          <span class="competitor-row__cla">{{ row.cla }}</span>
+          <span class="competitor-row__arrow" aria-hidden="true">›</span>
+        </button>
+        <div class="competitor-row__body" hidden>
+          <div class="tiros-grid">
+            {% for i in tiro_indices %}
+            <input type="number" class="input-tiro" inputmode="decimal" min="0" step="any" placeholder="{{ i }}ª" aria-label="{{ i }}ª tentativa">
+            {% endfor %}
+          </div>
+          <div class="competitor-row__footer">
+            <span class="competitor-row__total-live">Total: <strong data-total>0</strong></span>
+            <button type="button" class="btn btn--primary btn--small" data-enviar>Enviar</button>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+</main>
+
+<script src="{{ url_for('static', filename='competicoes.js') }}"></script>
+</body>
+</html>

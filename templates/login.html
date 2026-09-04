@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Entrar — Aço &amp; Folha</title>
+<meta name="theme-color" content="#3B5D42">
+<link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>Aço &amp; Folha</h1>
+  <p class="topbar__subtitle">Registro de Aquisições</p>
+  <p class="topbar__user">
+    <a href="{{ url_for('home') }}">‹ Início</a>
+  </p>
+</header>
+
+<main class="wrap login-wrap">
+
+  {% if error %}
+  <div class="banner banner--error">{{ error }}</div>
+  {% endif %}
+
+  <section class="card login-card">
+    <p class="login-card__text">
+      Entre com a sua Conta Google para registrar uma compra.
+      Isso identifica quem fez cada transação.
+    </p>
+
+    {% if google_client_id %}
+    <div id="g_id_onload"
+         data-client_id="{{ google_client_id }}"
+         data-login_uri="{{ request.url_root }}auth/google{% if next %}?next={{ next }}{% endif %}"
+         data-auto_prompt="false">
+    </div>
+    <div class="g_id_signin"
+         data-type="standard"
+         data-size="large"
+         data-theme="outline"
+         data-text="signin_with"
+         data-shape="rectangular"
+         data-logo_alignment="left">
+    </div>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    {% else %}
+    <p class="banner banner--error">
+      Login com Google ainda não configurado neste ambiente
+      (falta a variável <code>GOOGLE_OAUTH_CLIENT_ID</code>).
+    </p>
+    {% endif %}
+  </section>
+
+</main>
+
+</body>
+</html>

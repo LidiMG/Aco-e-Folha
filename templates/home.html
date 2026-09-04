@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Aço &amp; Folha</title>
+<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+<meta name="theme-color" content="#3B5D42">
+<link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Playfair+Display:ital,wght@1,600;1,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="home-body">
+
+<div class="hero">
+  <img src="{{ url_for('static', filename='img/hero-aco-folha.jpg') }}" alt="Espada com folhas de hera, emblema do Aço &amp; Folha">
+</div>
+
+<div class="title-wrap">
+  <h1 class="brand-title">Aço &amp; Folha</h1>
+  <p class="brand-subtitle">Gestão do evento</p>
+</div>
+
+<main class="modes">
+  <a class="mode-card mode-card--aquisicao" href="{{ url_for('aquisicao') }}">
+    <span class="mode-card__icon" aria-hidden="true">🛒</span>
+    <span class="mode-card__text">
+      <span class="mode-card__label">Aquisições</span>
+      <span class="mode-card__hint">Registrar compras</span>
+    </span>
+    <span class="mode-card__arrow" aria-hidden="true">›</span>
+  </a>
+  <a class="mode-card mode-card--competicoes" href="{{ url_for('competicoes') }}">
+    <span class="mode-card__icon" aria-hidden="true">🏹</span>
+    <span class="mode-card__text">
+      <span class="mode-card__label">Competições</span>
+      <span class="mode-card__hint">Lançar notas dos torneios</span>
+    </span>
+    <span class="mode-card__arrow" aria-hidden="true">›</span>
+  </a>
+  <a class="mode-card mode-card--resultados" href="{{ url_for('resultados') }}">
+    <span class="mode-card__icon" aria-hidden="true">🏆</span>
+    <span class="mode-card__text">
+      <span class="mode-card__label">Resultados</span>
+      <span class="mode-card__hint">Top 3 e atividades culturais</span>
+    </span>
+    <span class="mode-card__arrow" aria-hidden="true">›</span>
+  </a>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Aço &amp; Folha — Registro de Aquisições</title>
+<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+<meta name="theme-color" content="#3B5D42">
+<link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>Aço &amp; Folha</h1>
+  <p class="topbar__subtitle">Registro de Aquisições</p>
+  <p class="topbar__user">
+    <a href="{{ url_for('home') }}">‹ Início</a> · {{ user_name }} · <a href="{{ url_for('logout') }}">Sair</a>
+  </p>
+</header>
+
+<main class="wrap">
+
+  <div id="errorBanner" class="banner banner--error" hidden>
+    <strong>Não foi possível enviar:</strong>
+    <ul id="errorList"></ul>
+  </div>
+
+  <div id="successBanner" class="banner banner--success" hidden>
+    <strong>Compra registrada!</strong>
+    <p>Código da compra: <span id="successId"></span></p>
+    <ul id="successWarnings" class="success-warnings" hidden></ul>
+    <button type="button" id="newSubmissionBtn" class="btn btn--ghost">Registrar nova compra</button>
+  </div>
+
+  <form id="purchaseForm" novalidate>
+
+    <div id="stepDetails">
+
+      <section class="card">
+        <div class="field">
+          <span class="field__label">Forma de pagamento <span class="req">*</span></span>
+          <div class="pill-group" data-role="pagamento">
+            {% for opt in payment_options %}
+            <label class="pill">
+              <input type="radio" name="forma_pagamento" value="{{ opt }}">
+              <span>{{ opt }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <h2 class="section-title">Atividades</h2>
+      <p class="section-hint">Marque tudo que foi comprado nesta transação.</p>
+
+      <div class="activity-list">
+        {% for key, cfg in activities.items() %}
+
+        {% if cfg.has_mode %}
+        <section class="activity-card" data-activity="{{ key }}" data-has-mode="true">
+          <p class="activity-card__title">{{ cfg.label }}</p>
+
+          {% for modo_opt in mode_options %}
+          <div class="activity-subcard"
+               data-activity="{{ key }}"
+               data-modo="{{ modo_opt }}"
+               data-collects-names="{{ 'true' if (cfg.collects_competitor_names and modo_opt == 'Competição') else 'false' }}">
+            <label class="activity-subcard__header">
+              <input type="checkbox" class="activity-toggle">
+              <span>{{ modo_opt }}</span>
+            </label>
+
+            <div class="activity-subcard__body" hidden>
+
+              <div class="field field--inline">
+                <span class="field__label">Quantidade <span class="req">*</span></span>
+                <div class="qty-stepper">
+                  <button type="button" class="qty-stepper__btn" data-step="-1" aria-label="Diminuir quantidade">−</button>
+                  <span class="qty-stepper__value">0</span>
+                  <button type="button" class="qty-stepper__btn" data-step="1" aria-label="Aumentar quantidade">+</button>
+                  <input type="hidden" class="input-quantidade" value="0">
+                </div>
+              </div>
+
+              {% if cfg.collects_competitor_names and modo_opt == "Competição" %}
+              <div class="field competitor-names" data-role="competidores" hidden>
+              <span class="field__label">Nome e telefone de cada competidor <span class="req">*</span> <em>(clã opcional)</em></span>
+                <div class="competitor-names__list"></div>
+              </div>
+              {% endif %}
+
+            </div>
+          </div>
+          {% endfor %}
+        </section>
+
+        {% else %}
+        <section class="activity-card" data-activity="{{ key }}" data-has-mode="false" data-collects-names="{{ 'true' if cfg.collects_competitor_names else 'false' }}">
+          <label class="activity-card__header">
+            <input type="checkbox" class="activity-toggle">
+            <span>{{ cfg.label }}</span>
+          </label>
+
+          <div class="activity-card__body" hidden>
+
+            <div class="field field--inline">
+              <span class="field__label">Quantidade <span class="req">*</span></span>
+              <div class="qty-stepper">
+                <button type="button" class="qty-stepper__btn" data-step="-1" aria-label="Diminuir quantidade">−</button>
+                <span class="qty-stepper__value">0</span>
+                <button type="button" class="qty-stepper__btn" data-step="1" aria-label="Aumentar quantidade">+</button>
+                <input type="hidden" class="input-quantidade" value="0">
+              </div>
+            </div>
+
+            <p class="fixed-mode-note">Sempre registrado como <strong>{{ cfg.fixed_mode }}</strong>.</p>
+
+            {% if cfg.collects_competitor_names %}
+            <div class="field competitor-names" data-role="competidores" hidden>
+              <span class="field__label">Nome e telefone de cada competidor <span class="req">*</span> <em>(clã opcional)</em></span>
+              <div class="competitor-names__list"></div>
+            </div>
+            {% endif %}
+
+          </div>
+        </section>
+        {% endif %}
+
+        {% endfor %}
+      </div>
+
+      <div id="totalDisplay" class="total-display">
+        <span class="total-display__label">Valor total da compra</span>
+        <span class="total-display__value" id="totalValue">R$ 0,00</span>
+      </div>
+
+      <section class="card" id="stepPhoto">
+        <label class="camera-trigger" for="photoInput">
+          <span class="camera-trigger__icon" aria-hidden="true">📷</span>
+          <span class="camera-trigger__text">Tirar foto do comprovante</span>
+          <span class="req">*</span>
+        </label>
+        <input type="file" id="photoInput" name="photo" accept="image/*" capture="environment">
+        <img id="photoPreview" class="photo-preview" hidden alt="Pré-visualização da foto">
+        <button type="button" id="retakePhotoBtn" class="btn btn--ghost" hidden>Tirar outra foto</button>
+      </section>
+
+      <button type="submit" id="submitBtn" class="btn btn--primary">Enviar compra</button>
+    </div>
+
+  </form>
+
+</main>
+
+<script>window.ACTIVITY_PRICES = {{ prices_json | safe }};</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

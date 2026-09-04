@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>{{ cfg.label }} — Resultados — Aço &amp; Folha</title>
+<meta name="theme-color" content="#3B5D42">
+<link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>{{ cfg.label }}</h1>
+  <p class="topbar__subtitle">Top 3</p>
+  <p class="topbar__user">
+    <a href="{{ url_for('resultados') }}">‹ Resultados</a>
+  </p>
+</header>
+
+<main class="wrap">
+
+  {% if erro %}
+  <div class="banner banner--error">{{ erro }}</div>
+  {% endif %}
+
+  <p class="section-hint">
+    Atualiza sozinho a cada nova nota lançada —
+    <a href="javascript:location.reload()">recarregue a página</a> pra ver o mais recente.
+  </p>
+
+  {% if not top3 %}
+  <p class="empty-hint">Ainda não há resultados suficientes nesta atividade.</p>
+  {% else %}
+  <div class="podium-list">
+    {% for row in top3 %}
+    <div class="podium-item podium-item--{{ loop.index }}">
+      <span class="podium-item__place">{{ loop.index }}º</span>
+      <span class="podium-item__name">{{ row.nome }}</span>
+      <span class="podium-item__cla">{{ row.cla }}</span>
+      <span class="podium-item__score">
+        {% if row.total is defined %}{{ row.total }} pts{% else %}Posição {{ row.posicao }}{% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</main>
+
+</body>
+</html>
