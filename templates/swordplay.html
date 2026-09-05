@@ -49,8 +49,11 @@
     <div class="competitor-list">
       {% for row in rows %}
       <div class="swordplay-row" data-row="{{ row._row }}">
-        <span class="swordplay-row__name">{{ row.nome }}</span>
-        <span class="swordplay-row__cla">{{ row.cla }}</span>
+        <span class="swordplay-row__nameblock">
+          <span class="swordplay-row__name">{{ row.nome }}</span>
+          <span class="swordplay-row__cla">{{ row.cla }}</span>
+          {% if row._duplicado %}<span class="swordplay-row__telefone">{{ row.telefone }}</span>{% endif %}
+        </span>
         <input type="number" class="input-posicao" inputmode="numeric" min="1" step="1"
                placeholder="Posição" value="{{ row.posicao }}" aria-label="Posição de {{ row.nome }}">
       </div>

@@ -31,7 +31,7 @@
   </div>
 
   <p class="section-hint">
-    Toque num nome pra lançar a nota. Novos inscritos não aparecem sozinhos —
+    Toque num nome para lançar a pontuação. Novos inscritos não aparecem sozinhos —
     <a href="javascript:location.reload()">atualize a página</a> de tempos em tempos.
   </p>
 
@@ -47,13 +47,17 @@
           <span class="competitor-row__nameblock">
             <span class="competitor-row__name">{{ row.nome }}</span>
             <span class="competitor-row__cla">{{ row.cla }}</span>
+            {% if row._duplicado %}<span class="competitor-row__telefone">{{ row.telefone }}</span>{% endif %}
           </span>
           <span class="competitor-row__total">Total: {{ row.total }}</span>
         </div>
       {% else %}
         <button type="button" class="competitor-row__header" data-toggle>
-          <span class="competitor-row__name">{{ row.nome }}</span>
-          <span class="competitor-row__cla">{{ row.cla }}</span>
+          <span class="competitor-row__nameblock">
+            <span class="competitor-row__name">{{ row.nome }}</span>
+            <span class="competitor-row__cla">{{ row.cla }}</span>
+            {% if row._duplicado %}<span class="competitor-row__telefone">{{ row.telefone }}</span>{% endif %}
+          </span>
           <span class="competitor-row__arrow" aria-hidden="true">›</span>
         </button>
         <div class="competitor-row__body" hidden>

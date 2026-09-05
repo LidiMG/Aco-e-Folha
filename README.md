@@ -36,6 +36,15 @@ O app tem uma tela inicial com três caminhos:
   inscritos de cada atividade cultural (que é decidida por voto popular,
   fora do app).
 
+### Mapa do sistema (PDF)
+
+O arquivo `mapa-do-sistema.pdf`, incluído neste repositório, tem os
+diagramas da estrutura completa do app — a tela inicial e os três modos,
+com o fluxo de dentro de cada um (Aquisição, Competições e Resultados).
+Serve como um guia visual rápido pra quem estiver sendo treinado pra usar
+o app — ajuda a entender de cara "quem faz o quê, onde" sem precisar ler
+este README inteiro.
+
 ## 2. Estrutura do projeto
 
 ```
@@ -45,6 +54,7 @@ evento-app/
 ├── setup_drive_auth.py        # Script de autorização única do Drive (rodar localmente)
 ├── requirements.txt
 ├── .env.example                # Modelo do .env — copie e preencha
+├── mapa-do-sistema.pdf         # Diagramas da estrutura do app — bom pra treinar gente nova
 ├── templates/
 │   ├── home.html               # Tela inicial (hub dos 3 modos)
 │   ├── login.html               # Login da equipe (Aquisição)
@@ -80,16 +90,16 @@ processo com a conta oficial da equipe quando for para produção.
    - Google Sheets API
    - Google Drive API
 
-3. **Criar uma Service Account** (para gravar na planilha/Drive)
+3. **Criar as credenciais do Google Cloud** (são duas, nesta ordem)
+   **Parte A — Service Account** (para gravar na planilha/Drive):
    "APIs e serviços" → "Credenciais" → "Criar credenciais" → "Conta de serviço".
    Dê um nome (ex.: `evento-app-bot`) e conclua. Depois, na conta de serviço
    criada, vá em "Chaves" → "Adicionar chave" → "Criar nova chave" → JSON.
    Isso baixa um arquivo `.json` — **guarde-o fora do controle de versão**
    (nunca suba esse arquivo pro GitHub).
-
-3.1. **Criar um OAuth Client ID** (para o login "Entrar com Google" da equipe)
-   Esta é uma credencial diferente da service account — é ela que permite
-   que cada pessoa da equipe entre com a própria conta.
+   **Parte B — OAuth Client ID** (para o login "Entrar com Google" da
+   equipe): uma credencial diferente da Service Account — é ela que
+   permite que cada pessoa da equipe entre com a própria conta.
    "APIs e serviços" → "Credenciais" → "Criar credenciais" →
    "ID do cliente OAuth" → tipo "Aplicativo da Web".
    Em "Origens JavaScript autorizadas", adicione a URL onde o app vai
@@ -183,7 +193,7 @@ enquanto ainda está rodando só no seu computador:
 seja `localhost` — pelo IP da rede local, o botão de login não aparece. Pra
 testar o login de verdade no celular, use um túnel como o
 [ngrok](https://ngrok.com/) (`ngrok http 5000`), e adicione a URL gerada
-nas "Origens JavaScript autorizadas" do Client ID (passo 3.1).
+nas "Origens JavaScript autorizadas" do Client ID (passo 3, Parte B).
 
 ## 6. Colocar no ar para a equipe usar de verdade
 
@@ -283,22 +293,41 @@ que o app precisa ler ou escrever nela — não precisa criar manualmente.
   sempre opcional**, em qualquer forma de pagamento — o gestor preferiu
   assim pra não formar fila esperando a foto. Em Dinheiro, a etapa da
   foto nem aparece na tela (não existe comprovante de transferência ali).
+  Se o Drive falhar no envio por qualquer motivo, a compra é salva
+  normalmente mesmo assim (a foto é opcional) — `link_foto` recebe o
+  texto `"Imagem não recebida"` em vez do link. Isso fica só registrado
+  na planilha, sem nenhum aviso na tela pra quem está atendendo (achamos
+  que só confundiria, sem ação nenhuma que dessem pra fazer ali na hora).
 - **nome_competidor / telefone_competidor / cla_competidor**: preenchidos
   pra todas as competições (as 3 físicas, só em modo Competição; as 3
-  culturais, sempre). Nome e telefone (com DDD) são obrigatórios; **clã é
-  opcional**. Cada competidor vira sua própria linha, com `quantidade`
-  sempre 1 — mesmo que várias pessoas comprem juntas, evitando contar
-  errado ao somar a coluna.
+  culturais, sempre). Nome e telefone (com DDD) são obrigatórios em
+  todas. **Clã só existe nas 3 físicas** (Arco, Machado, Swordplay) e lá
+  é opcional — as culturais (Vestimenta, Bardos, Feitiços) não coletam
+  clã nenhum, nem nesta aba nem nas abas próprias delas. Cada competidor
+  vira sua própria linha, com `quantidade` sempre 1 — mesmo que várias
+  pessoas comprem juntas, evitando contar errado ao somar a coluna.
 - **Treino e Competição da mesma atividade na mesma compra**: são seções
   independentes na tela — dá pra marcar as duas ao mesmo tempo.
+- **Homônimos**: nas telas de Competições (Arco, Machado, Swordplay), se
+  dois inscritos tiverem o mesmo nome, o telefone aparece automaticamente
+  embaixo do nome dos dois, só nesse caso — pra dar pra diferenciar quem
+  é quem. Sem homônimos, a tela continua só com nome e clã, sem poluir.
+  Nas culturais isso nem é preciso, porque o telefone já aparece sempre.
 
 ### Alimentação automática das abas de atividade
 
-Toda compra em modo Competição também copia nome/clã/telefone pra aba da
-atividade correspondente — pra já chegar pronta pro instrutor usar, sem
-copiar nada manualmente. Se a aba não existir, a compra continua sendo
-salva normalmente, só aparece um aviso não-bloqueante avisando qual cópia
-falhou.
+Toda compra em modo Competição também copia nome/telefone (e clã, nas
+físicas) pra aba da atividade correspondente — pra já chegar pronta pro
+instrutor usar, sem copiar nada manualmente. Cada atividade usa o
+cabeçalho certo pra ela (`sheet_headers_for()` em `config.py` decide:
+físicas com pontuação ganham colunas de tiro/total, Swordplay ganha
+coluna de posição, culturais ficam só com nome/telefone) — é a mesma
+função usada tanto pra alimentar quanto pra ler depois, então não tem
+risco de uma tela esperar um formato de coluna diferente do que a outra
+gravou. Se a aba não existir, a compra continua sendo salva normalmente
+— a cópia pra aba da atividade simplesmente não acontece, sem travar o
+envio nem avisar quem está atendendo (nada que dessem pra fazer na hora
+mesmo; se acontecer, dá pra perceber olhando a planilha depois).
 
 ## 9. Aquisição — detalhes da tela
 

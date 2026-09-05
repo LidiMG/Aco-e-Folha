@@ -457,13 +457,6 @@ input[type="file"] {
   font-family: var(--font-display);
 }
 
-.success-warnings {
-  margin: 10px 0;
-  padding-left: 20px;
-  font-size: 0.85rem;
-  color: var(--color-accent);
-}
-
 .total-display {
   display: flex;
   align-items: center;
@@ -708,6 +701,7 @@ input[type="file"] {
 
 .competitor-row--done .competitor-row__name,
 .competitor-row--done .competitor-row__cla,
+.competitor-row--done .competitor-row__telefone,
 .competitor-row--done .competitor-row__total {
   color: #9AA79A;
   font-weight: 600;
@@ -716,6 +710,11 @@ input[type="file"] {
 .competitor-row__cla {
   font-size: 0.85rem;
   color: var(--color-ink-soft);
+}
+
+.competitor-row__telefone {
+  font-size: 0.8rem;
+  color: var(--color-accent);
 }
 
 .competitor-row__total {
@@ -782,15 +781,26 @@ input[type="file"] {
   padding: 12px 14px;
 }
 
+.swordplay-row__nameblock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
 .swordplay-row__name {
   font-weight: 700;
   color: var(--color-ink);
-  flex: 1;
 }
 
 .swordplay-row__cla {
   font-size: 0.85rem;
   color: var(--color-ink-soft);
+}
+
+.swordplay-row__telefone {
+  font-size: 0.8rem;
+  color: var(--color-accent);
 }
 
 .swordplay-row .input-posicao {

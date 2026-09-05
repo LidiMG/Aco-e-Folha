@@ -32,7 +32,6 @@
   <div id="successBanner" class="banner banner--success" hidden>
     <strong>Compra registrada!</strong>
     <p>Código da compra: <span id="successId"></span></p>
-    <ul id="successWarnings" class="success-warnings" hidden></ul>
     <button type="button" id="newSubmissionBtn" class="btn btn--ghost">Registrar nova compra</button>
   </div>
 
@@ -99,7 +98,7 @@
         </section>
 
         {% else %}
-        <section class="activity-card" data-activity="{{ key }}" data-has-mode="false" data-collects-names="{{ 'true' if cfg.collects_competitor_names else 'false' }}">
+        <section class="activity-card" data-activity="{{ key }}" data-has-mode="false" data-collects-names="{{ 'true' if cfg.collects_competitor_names else 'false' }}" data-collects-cla="{{ 'true' if cfg.get('collects_cla', True) else 'false' }}">
           <label class="activity-card__header">
             <input type="checkbox" class="activity-toggle">
             <span>{{ cfg.label }}</span>
@@ -121,7 +120,7 @@
 
             {% if cfg.collects_competitor_names %}
             <div class="field competitor-names" data-role="competidores" hidden>
-              <span class="field__label">Nome e telefone de cada competidor <span class="req">*</span> <em>(clã opcional)</em></span>
+              <span class="field__label">Nome e telefone de cada competidor <span class="req">*</span></span>
               <div class="competitor-names__list"></div>
             </div>
             {% endif %}

@@ -30,10 +30,12 @@ from config import (
     SHEET_HEADERS,
     NOME_ABA_AQUISICAO,
     COMPETITOR_SHEET_HEADERS,
+    CULTURAL_SHEET_HEADERS,
     SWORDPLAY_HEADERS,
     TORNEIO_FISICOS,
     TORNEIO_CULTURAIS,
     score_headers,
+    sheet_headers_for,
 )
 
 # Lê as variáveis de um arquivo .env na mesma pasta, se ele existir — assim
@@ -245,6 +247,19 @@ def read_modality_rows(sheet_name, headers):
 
 def ordenar_por_nome(rows):
     return sorted(rows, key=lambda r: r.get("nome", "").strip().lower())
+
+
+def marcar_homonimos(rows):
+    """Marca (com '_duplicado') as linhas cujo nome se repete na lista —
+    a tela usa isso pra mostrar o telefone junto e diferenciar as pessoas."""
+    contagem = {}
+    for r in rows:
+        chave = r.get("nome", "").strip().lower()
+        contagem[chave] = contagem.get(chave, 0) + 1
+    for r in rows:
+        chave = r.get("nome", "").strip().lower()
+        r["_duplicado"] = contagem.get(chave, 0) > 1
+    return rows
 
 
 # Fotos são redimensionadas e recomprimidas antes de subir pro Drive — o
@@ -479,7 +494,7 @@ def competicao_swordplay():
     cfg = ACTIVITIES["swordplay"]
     erro = None
     try:
-        rows = ordenar_por_nome(read_modality_rows(cfg["sheet_name"], SWORDPLAY_HEADERS))
+        rows = marcar_homonimos(ordenar_por_nome(read_modality_rows(cfg["sheet_name"], SWORDPLAY_HEADERS)))
     except Exception as exc:  # noqa: BLE001
         rows = []
         erro = str(exc)
@@ -527,7 +542,7 @@ def competicao_pontuar(key):
     headers = score_headers(cfg["num_tiros"])
     erro = None
     try:
-        rows = ordenar_por_nome(read_modality_rows(cfg["sheet_name"], headers))
+        rows = marcar_homonimos(ordenar_por_nome(read_modality_rows(cfg["sheet_name"], headers)))
     except Exception as exc:  # noqa: BLE001
         rows = []
         erro = str(exc)
@@ -602,7 +617,7 @@ def resultado_atividade(key):
 
     if key in TORNEIO_CULTURAIS:
         try:
-            rows = ordenar_por_nome(read_modality_rows(cfg["sheet_name"], COMPETITOR_SHEET_HEADERS))
+            rows = ordenar_por_nome(read_modality_rows(cfg["sheet_name"], CULTURAL_SHEET_HEADERS))
         except Exception as exc:  # noqa: BLE001
             rows, erro = [], str(exc)
         return render_template("resultado_cultural.html", cfg=cfg, rows=rows, erro=erro)
@@ -677,19 +692,21 @@ def submit():
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     photo_link = ""
+    avisos = []
     if photo_file and photo_file.filename:
         try:
             photo_link = upload_photo_to_drive(photo_file, purchase_id)
         except Exception as exc:  # noqa: BLE001 — captura qualquer falha do Google
-            return jsonify({
-                "ok": False,
-                "errors": [f"Não foi possível enviar a foto ao Google Drive: {exc}"],
-            }), 502
+            photo_link = "Imagem não recebida"
+            avisos.append(
+                f"Não foi possível enviar a foto ao Google Drive (a compra foi salva mesmo assim): {exc}"
+            )
 
     rows = []
-    competitor_rows_by_sheet = {}
+    competitor_rows_by_activity = {}
     for item in activities_payload:
-        cfg = ACTIVITIES[item["activity"]]
+        activity_key = item["activity"]
+        cfg = ACTIVITIES[activity_key]
         modo = cfg["fixed_mode"] or item.get("modo", "")
         quantidade = int(item["quantidade"])
 
@@ -720,13 +737,13 @@ def submit():
                     responsavel_email,
                 ])
 
-            # Também prepara a cópia pra aba própria da atividade (nome/clã/
-            # telefone), pra já chegar pronta pro instrutor pontuar depois.
-            sheet_name = cfg.get("sheet_name")
-            if sheet_name:
-                competitor_rows_by_sheet.setdefault(sheet_name, []).extend(
-                    [c["nome"], c["cla"], c["telefone"]] for c in competidores
-                )
+            # Também prepara a cópia pra aba própria da atividade, pra já
+            # chegar pronta pro instrutor pontuar depois. O cabeçalho de
+            # cada aba decide sozinho se tem coluna de clã (culturais não
+            # têm) — sheet_headers_for garante que é o mesmo formato usado
+            # depois pelas telas de Competições/Resultados.
+            if cfg.get("sheet_name"):
+                competitor_rows_by_activity.setdefault(activity_key, []).extend(competidores)
         else:
             valor_total = format_brl(round(preco_unitario * quantidade, 2)) if preco_unitario is not None else ""
             rows.append([
@@ -760,10 +777,22 @@ def submit():
     # swordplay, vestimenta, bardos, feiticos). A compra já foi salva com
     # sucesso acima — se isso aqui falhar (ex.: aba não existe ainda), a
     # compra continua válida, só avisa em vez de travar o envio.
-    avisos = []
-    for sheet_name, comp_rows in competitor_rows_by_sheet.items():
+    for activity_key, competidores in competitor_rows_by_activity.items():
+        cfg = ACTIVITIES[activity_key]
+        sheet_name = cfg["sheet_name"]
+        headers = sheet_headers_for(activity_key, cfg)
+
+        comp_rows = []
+        for c in competidores:
+            row = [""] * len(headers)
+            row[headers.index("nome")] = c["nome"]
+            row[headers.index("telefone")] = c["telefone"]
+            if "cla" in headers:
+                row[headers.index("cla")] = c["cla"]
+            comp_rows.append(row)
+
         try:
-            modality_ws = get_worksheet(sheet_name, COMPETITOR_SHEET_HEADERS)
+            modality_ws = get_worksheet(sheet_name, headers)
             modality_ws.append_rows(comp_rows, value_input_option="USER_ENTERED")
         except Exception as exc:  # noqa: BLE001
             avisos.append(

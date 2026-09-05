@@ -13,7 +13,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const errorList = document.getElementById("errorList");
   const successBanner = document.getElementById("successBanner");
   const successId = document.getElementById("successId");
-  const successWarnings = document.getElementById("successWarnings");
   const newSubmissionBtn = document.getElementById("newSubmissionBtn");
   const photoInput = document.getElementById("photoInput");
   const photoPreview = document.getElementById("photoPreview");
@@ -132,6 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     competitorBlock.hidden = false;
+    const collectsCla = container.dataset.collectsCla !== "false";
 
     while (list.children.length < quantidade) {
       const idx = list.children.length + 1;
@@ -150,14 +150,17 @@ document.addEventListener("DOMContentLoaded", () => {
       telInput.placeholder = "Telefone com DDD";
       telInput.inputMode = "tel";
 
-      const claInput = document.createElement("input");
-      claInput.type = "text";
-      claInput.className = "input-competidor-cla";
-      claInput.placeholder = "Clã (opcional)";
-
       entry.appendChild(nomeInput);
       entry.appendChild(telInput);
-      entry.appendChild(claInput);
+
+      if (collectsCla) {
+        const claInput = document.createElement("input");
+        claInput.type = "text";
+        claInput.className = "input-competidor-cla";
+        claInput.placeholder = "Clã (opcional)";
+        entry.appendChild(claInput);
+      }
+
       list.appendChild(entry);
     }
     while (list.children.length > quantidade) {
@@ -247,8 +250,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function hideBanners() {
     errorBanner.hidden = true;
     successBanner.hidden = true;
-    successWarnings.hidden = true;
-    successWarnings.innerHTML = "";
   }
 
   function showErrors(messages) {
@@ -268,11 +269,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!competitorContainer) return undefined;
 
     const entries = Array.from(competitorContainer.querySelectorAll(".competitor-entry"));
-    const competidores = entries.map((entry) => ({
-      nome: entry.querySelector(".input-competidor-nome").value.trim(),
-      telefone: entry.querySelector(".input-competidor-telefone").value.trim(),
-      cla: entry.querySelector(".input-competidor-cla").value.trim(),
-    }));
+    const competidores = entries.map((entry) => {
+      const claInput = entry.querySelector(".input-competidor-cla");
+      return {
+        nome: entry.querySelector(".input-competidor-nome").value.trim(),
+        telefone: entry.querySelector(".input-competidor-telefone").value.trim(),
+        cla: claInput ? claInput.value.trim() : "",
+      };
+    });
     const completos = competidores.filter((c) => c.nome && c.telefone);
 
     if (quantidade > 0 && completos.length !== quantidade) {
@@ -376,20 +380,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (data.ok) {
         successId.textContent = data.purchase_id;
-
-        const avisos = data.avisos || [];
-        successWarnings.innerHTML = "";
-        if (avisos.length > 0) {
-          avisos.forEach((msg) => {
-            const li = document.createElement("li");
-            li.textContent = msg;
-            successWarnings.appendChild(li);
-          });
-          successWarnings.hidden = false;
-        } else {
-          successWarnings.hidden = true;
-        }
-
         successBanner.hidden = false;
         form.hidden = true;
         successBanner.scrollIntoView({ behavior: "smooth", block: "start" });

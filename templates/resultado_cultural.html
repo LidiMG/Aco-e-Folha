@@ -37,7 +37,7 @@
     {% for row in rows %}
     <li class="name-list__item">
       <span class="name-list__name">{{ row.nome }}</span>
-      <span class="name-list__meta">{{ row.cla }}{% if row.telefone %} · {{ row.telefone }}{% endif %}</span>
+      <span class="name-list__meta">{{ row.telefone }}</span>
     </li>
     {% endfor %}
   </ul>

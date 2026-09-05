@@ -45,6 +45,7 @@ ACTIVITIES = {
         "has_mode": False,
         "fixed_mode": "Competição",  # sempre competição, sem opção de treino
         "collects_competitor_names": True,
+        "collects_cla": False,  # culturais não usam clã — só nome e telefone
         "preco_unitario": 20.00,
         "sheet_name": "vestimenta",
         "icon": "👗",
@@ -54,6 +55,7 @@ ACTIVITIES = {
         "has_mode": False,
         "fixed_mode": "Competição",
         "collects_competitor_names": True,
+        "collects_cla": False,
         "preco_unitario": 20.00,
         "sheet_name": "bardos",
         "icon": "🎻",
@@ -63,6 +65,7 @@ ACTIVITIES = {
         "has_mode": False,
         "fixed_mode": "Competição",
         "collects_competitor_names": True,
+        "collects_cla": False,
         "preco_unitario": 20.00,
         "sheet_name": "feiticos",
         "icon": "🪄",
@@ -89,7 +92,8 @@ PAYMENT_OPTIONS = ["PIX", "Dinheiro"]
 
 # Aba principal (a mesma de sempre) e cabeçalhos das abas de cada atividade.
 NOME_ABA_AQUISICAO = "aquisicao"
-COMPETITOR_SHEET_HEADERS = ["nome", "cla", "telefone"]
+COMPETITOR_SHEET_HEADERS = ["nome", "cla", "telefone"]  # físicas, antes de pontuar/posicionar
+CULTURAL_SHEET_HEADERS = ["nome", "telefone"]           # culturais — sem clã
 SWORDPLAY_HEADERS = ["nome", "cla", "telefone", "posicao"]
 
 
@@ -98,6 +102,21 @@ def score_headers(num_tiros):
     nome/clã/telefone + um "tiroN" por tentativa + total."""
     tiros = [f"tiro{i}" for i in range(1, num_tiros + 1)]
     return ["nome", "cla", "telefone"] + tiros + ["total"]
+
+
+def sheet_headers_for(key, cfg):
+    """Cabeçalho correto da aba de UMA atividade, seja pra alimentar (a
+    partir da Aquisição) ou pra ler nas telas de Competições/Resultados —
+    usar sempre esta função garante que todo mundo concorda no mesmo
+    cabeçalho, sem risco de uma tela reescrever com um formato diferente
+    do que outra espera."""
+    if key == "swordplay":
+        return SWORDPLAY_HEADERS
+    if cfg.get("num_tiros"):
+        return score_headers(cfg["num_tiros"])
+    if cfg.get("collects_cla", True):
+        return COMPETITOR_SHEET_HEADERS
+    return CULTURAL_SHEET_HEADERS
 
 # Colunas da planilha Google Sheets, nesta ordem
 SHEET_HEADERS = [
