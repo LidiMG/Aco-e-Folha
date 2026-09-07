@@ -49,6 +49,7 @@ ACTIVITIES = {
         "preco_unitario": 20.00,
         "sheet_name": "vestimenta",
         "icon": "👗",
+        "regra_resultado": "O resultado é decidido por voto popular",
     },
     "bardos": {
         "label": "Bardos",
@@ -59,6 +60,7 @@ ACTIVITIES = {
         "preco_unitario": 20.00,
         "sheet_name": "bardos",
         "icon": "🎻",
+        "regra_resultado": "O resultado é decidido por voto popular",
     },
     "feiticos": {
         "label": "Feitiços",
@@ -69,6 +71,7 @@ ACTIVITIES = {
         "preco_unitario": 20.00,
         "sheet_name": "feiticos",
         "icon": "🪄",
+        "regra_resultado": "O resultado é decidido por voto popular",
     },
     "beberrao": {
         "label": "Beberrão",
@@ -79,6 +82,7 @@ ACTIVITIES = {
         "preco_unitario": 20.00,  # mesma regra das demais culturais
         "sheet_name": "beberrao",
         "icon": "🍺",
+        "regra_resultado": "Vence quem beber mais rápido",
     },
     # "cacaAoTesouro" fica de fora por enquanto (ainda incerto).
     # Quando confirmado, basta adicionar aqui:
