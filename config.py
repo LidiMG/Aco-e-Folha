@@ -76,7 +76,7 @@ ACTIVITIES = {
         "fixed_mode": "Competição",
         "collects_competitor_names": True,
         "collects_cla": False,
-        "preco_unitario": None,  # ainda não informado — confirme o valor antes do evento
+        "preco_unitario": 20.00,  # mesma regra das demais culturais
         "sheet_name": "beberrao",
         "icon": "🍺",
     },
