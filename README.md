@@ -2,9 +2,9 @@
 
 Este projeto foi desenvolvido para o evento **Aço & Folha**, para dar conta
 de três frentes que antes seriam planilhas separadas e soltas: registrar as
-compras de atividades no balcão, lançar os resultados dos torneios físicos
+compras de atividades, lançar os resultados dos torneios físicos
 (Arco e Flecha, Arremesso de Machado, Swordplay) e acompanhar as atividades
-culturais (Vestimenta, Bardos, Feitiços).
+culturais (Vestimenta, Bardos, Feitiços, Beberrão).
 
 É um app web mobile (instalável como PWA), sem custo de hospedagem paga
 obrigatório, e sem depender de planilhas soltas e desencontradas — tudo
@@ -13,7 +13,7 @@ alimenta a mesma planilha Google Sheets, e boa parte se alimenta sozinha.
 > Este projeto foi **construído inteiramente pela Claude AI (Anthropic)**,
 > a partir das orientações, decisões e testes de Lidiane Gomes — que
 > conduziu cada etapa (o que construir, em que ordem, com quais regras de
-> negócio), mas a escrita do código, a arquitetura técnica e a maior parte
+> negócio conforme orientação dos organizadores do evento), mas a escrita do código, a arquitetura técnica e a maior parte
 > das soluções de UI foram trabalho do Claude.
 
 ---
@@ -28,7 +28,7 @@ O app tem uma tela inicial com três caminhos:
   pagamento, e nome/telefone/clã de quem vai competir, quando aplicável.
   Tudo isso vira uma linha na planilha, por atividade.
 - **Competições** (`/competicoes`, sem login) — os instrutores lançam os
-  resultados: quadrados de tentativa para Arco e Flecha/Arremesso de
+  resultados: quadrados de pontuação para Arco e Flecha/Arremesso de
   Machado (a nota soma sozinha), e a posição final no ranking para o
   Swordplay.
 - **Resultados** (`/resultados`, sem login) — o Top 3 de cada torneio,
@@ -78,7 +78,7 @@ evento-app/
 
 ## 3. Configurar a conta Google (uma vez só)
 
-Você vai testar primeiro com `lidigomes@gmail.com`, depois repete o mesmo
+Você vai testar primeiro com `seuemail@gmail.com`, depois repete o mesmo
 processo com a conta oficial da equipe quando for para produção.
 
 1. **Criar um projeto no Google Cloud**
@@ -252,7 +252,7 @@ propósito, porque quem preenche muda ao longo do dia e o gestor pediu o
 caminho mais simples possível.
 
 - Quem tenta acessar `/aquisicao` sem estar logado é redirecionado pro
-  login, e volta pra `/aquisicao` automaticamente depois de entrar.
+  login, e volta para `/aquisicao` automaticamente depois de entrar.
 - Se `ALLOWED_EMAILS` estiver definida no `.env`, só os e-mails dessa
   lista conseguem entrar. Hoje está vazia de propósito — qualquer Conta
   Google consegue logar, já que a equipe de atendimento muda no dia.
@@ -273,7 +273,7 @@ planilha (maiúsculas/acentos importam):
 | `arco_flecha` | Inscritos + notas dos 4 tiros + total |
 | `machado` | Inscritos + notas dos 3 tiros + total |
 | `swordplay` | Inscritos + posição final no ranking |
-| `vestimenta`, `bardos`, `feiticos` | Só os inscritos (nome/clã/telefone) |
+| `vestimenta`, `bardos`, `feiticos`, `beberrao` | Só os inscritos (nome/telefone) |
 
 O cabeçalho de qualquer uma dessas abas é criado sozinho na primeira vez
 que o app precisa ler ou escrever nela — não precisa criar manualmente.
@@ -282,58 +282,59 @@ que o app precisa ler ou escrever nela — não precisa criar manualmente.
 
 `id_compra | data_hora | atividade | modo | quantidade | valor_unitario | valor_total | forma_pagamento | nome_competidor | telefone_competidor | cla_competidor | link_foto | responsavel_nome | responsavel_email`
 
-- **id_compra**: mesmo ID pra todas as atividades da mesma transação —
-  dá pra somar por atividade ou por compra completa.
+- **id_compra**: mesmo ID para todas as atividades da mesma transação —
+  dá para somar por atividade ou por compra completa.
 - **valor_unitario / valor_total**: vêm dos preços em `config.py`
   (`preco_unitario` — dicionário `{"Treino": valor, "Competição": valor}`
-  pras atividades com os dois modos, ou um número único pras demais),
+  para as atividades com os dois modos, ou um número único para as demais),
   formatados como moeda brasileira ("R$ 20,00"). Se faltar um preço,
   deixe `None` no lugar — a linha fica só com essas colunas vazias.
 - **forma_pagamento**: PIX ou Dinheiro, uma vez por compra. **A foto é
   sempre opcional**, em qualquer forma de pagamento — o gestor preferiu
-  assim pra não formar fila esperando a foto. Em Dinheiro, a etapa da
+  assim para não formar fila esperando a foto. Em Dinheiro, a etapa da
   foto nem aparece na tela (não existe comprovante de transferência ali).
   Se o Drive falhar no envio por qualquer motivo, a compra é salva
   normalmente mesmo assim (a foto é opcional) — `link_foto` recebe o
   texto `"Imagem não recebida"` em vez do link. Isso fica só registrado
-  na planilha, sem nenhum aviso na tela pra quem está atendendo (achamos
-  que só confundiria, sem ação nenhuma que dessem pra fazer ali na hora).
+  na planilha, sem nenhum aviso na tela para quem está atendendo (achamos
+  que só confundiria, sem ação nenhuma que desse para fazer ali na hora).
 - **nome_competidor / telefone_competidor / cla_competidor**: preenchidos
-  pra todas as competições (as 3 físicas, só em modo Competição; as 3
+  para todas as competições (as 3 físicas, só em modo Competição; as 4
   culturais, sempre). Nome e telefone (com DDD) são obrigatórios em
   todas. **Clã só existe nas 3 físicas** (Arco, Machado, Swordplay) e lá
-  é opcional — as culturais (Vestimenta, Bardos, Feitiços) não coletam
-  clã nenhum, nem nesta aba nem nas abas próprias delas. Cada competidor
-  vira sua própria linha, com `quantidade` sempre 1 — mesmo que várias
-  pessoas comprem juntas, evitando contar errado ao somar a coluna.
+  é opcional — as culturais (Vestimenta, Bardos, Feitiços, Beberrão) não
+  coletam clã nenhum, nem nesta aba nem nas abas próprias delas. Cada
+  competidor vira sua própria linha, com `quantidade` sempre 1 — mesmo
+  que várias pessoas comprem juntas, evitando contar errado ao somar a
+  coluna.
 - **Treino e Competição da mesma atividade na mesma compra**: são seções
-  independentes na tela — dá pra marcar as duas ao mesmo tempo.
+  independentes na tela — dá para marcar as duas ao mesmo tempo.
 - **Homônimos**: nas telas de Competições (Arco, Machado, Swordplay), se
   dois inscritos tiverem o mesmo nome, o telefone aparece automaticamente
-  embaixo do nome dos dois, só nesse caso — pra dar pra diferenciar quem
+  embaixo do nome dos dois, só nesse caso — para dar para diferenciar quem
   é quem. Sem homônimos, a tela continua só com nome e clã, sem poluir.
   Nas culturais isso nem é preciso, porque o telefone já aparece sempre.
 
 ### Alimentação automática das abas de atividade
 
 Toda compra em modo Competição também copia nome/telefone (e clã, nas
-físicas) pra aba da atividade correspondente — pra já chegar pronta pro
+físicas) para a aba da atividade correspondente — para já chegar pronta para o
 instrutor usar, sem copiar nada manualmente. Cada atividade usa o
-cabeçalho certo pra ela (`sheet_headers_for()` em `config.py` decide:
+cabeçalho certo para ela (`sheet_headers_for()` em `config.py` decide:
 físicas com pontuação ganham colunas de tiro/total, Swordplay ganha
 coluna de posição, culturais ficam só com nome/telefone) — é a mesma
-função usada tanto pra alimentar quanto pra ler depois, então não tem
+função usada tanto para alimentar quanto para ler depois, então não tem
 risco de uma tela esperar um formato de coluna diferente do que a outra
 gravou. Se a aba não existir, a compra continua sendo salva normalmente
-— a cópia pra aba da atividade simplesmente não acontece, sem travar o
-envio nem avisar quem está atendendo (nada que dessem pra fazer na hora
-mesmo; se acontecer, dá pra perceber olhando a planilha depois).
+— a cópia para a aba da atividade simplesmente não acontece, sem travar o
+envio nem avisar quem está atendendo (nada que desse para fazer na hora
+mesmo; se acontecer, dá para perceber olhando a planilha depois).
 
 ## 9. Aquisição — detalhes da tela
 
 - **Valor total da compra**: aparece em destaque, logo antes da foto (ou
   do botão Enviar, quando a foto não aparece), recalculado a cada
-  atividade/quantidade marcada — serve pra conferir com o cliente antes
+  atividade/quantidade marcada — serve para conferir com o cliente antes
   de enviar.
 - **Fotos comprimidas antes do upload**: redimensionadas para no máximo
   1600px no lado maior e recomprimidas em JPEG, mirando ~0,7MB por foto.
@@ -345,8 +346,8 @@ mesmo; se acontecer, dá pra perceber olhando a planilha depois).
 
 - **Arco e Flecha / Arremesso de Machado** (`/competicoes/<atividade>`):
   lista os inscritos daquela aba, em ordem alfabética, com um emoji por
-  atividade pra identificar rápido. Quem ainda não pontuou aparece
-  clicável — toque no nome pra abrir os quadrados de tentativa (4 no
+  atividade para identificar rápido. Quem ainda não pontuou aparece
+  clicável — toque no nome pra abrir os quadrados de pontuação (4 tentativas no
   Arco, 3 no Machado), o total soma sozinho conforme digita, e o botão
   Enviar grava só a nota daquela pessoa. Depois de enviado, o nome fica
   cinza e sem clique, com o clã abaixo do nome e o total à direita, tudo
@@ -357,16 +358,18 @@ mesmo; se acontecer, dá pra perceber olhando a planilha depois).
   manda a lista inteira de uma vez, mas só grava quem tem posição
   preenchida (não sobrescreve com vazio quem já tinha). O
   acompanhamento de quem enfrenta quem é feito no papel, fora do app —
-  aqui só entra o resultado final, e dá pra reenviar quantas vezes
+  aqui só entra o resultado final, e dá para reenviar quantas vezes
   precisar ao longo do dia.
 - **Resultados** (`/resultados`): Top 3 automático de cada torneio (por
-  total no Arco/Machado, por posição no Swordplay), e pra cada atividade
+  total no Arco/Machado, por posição no Swordplay), e para cada atividade
   cultural uma lista alfabética simples dos inscritos, sem nota — o
-  resultado ali é por voto popular, fora do app. Em ambos os casos, o
-  telefone do competidor aparece junto (nome/clã/telefone) — os
-  apresentadores usam pra chamar/contatar quem ganhou. Isso é diferente
-  de Competições, onde o telefone fica escondido de propósito (os
-  instrutores não precisam dele, só poluiria a tela).
+  resultado dessas é decidido fora do app: por voto popular em
+  Vestimenta, Bardos e Feitiços, e por quem bebe mais rápido em
+  Beberrão. Em ambos os casos (torneios e culturais), o telefone do
+  competidor aparece junto ao nome — os apresentadores usam pra
+  chamar/contatar quem ganhou. Isso é diferente de Competições, onde o
+  telefone fica escondido de propósito (os instrutores não precisam
+  dele, só poluiria a tela).
 
 ## 11. Próximos passos possíveis (não implementados ainda)
 

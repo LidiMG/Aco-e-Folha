@@ -70,6 +70,16 @@ ACTIVITIES = {
         "sheet_name": "feiticos",
         "icon": "🪄",
     },
+    "beberrao": {
+        "label": "Beberrão",
+        "has_mode": False,
+        "fixed_mode": "Competição",
+        "collects_competitor_names": True,
+        "collects_cla": False,
+        "preco_unitario": None,  # ainda não informado — confirme o valor antes do evento
+        "sheet_name": "beberrao",
+        "icon": "🍺",
+    },
     # "cacaAoTesouro" fica de fora por enquanto (ainda incerto).
     # Quando confirmado, basta adicionar aqui:
     # "caca_tesouro": {
@@ -85,7 +95,7 @@ ACTIVITIES = {
 # As 3 atividades físicas de torneio, na ordem em que aparecem nas telas de
 # Competições/Resultados. Culturais ficam à parte (TORNEIO_CULTURAIS abaixo).
 TORNEIO_FISICOS = ["arco_flecha", "arremesso_machado", "swordplay"]
-TORNEIO_CULTURAIS = ["vestimenta", "bardos", "feiticos"]
+TORNEIO_CULTURAIS = ["vestimenta", "bardos", "feiticos", "beberrao"]
 
 MODE_OPTIONS = ["Treino", "Competição"]
 PAYMENT_OPTIONS = ["PIX", "Dinheiro"]

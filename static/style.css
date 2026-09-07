@@ -498,6 +498,7 @@ input[type="file"] {
   height: 220px;
   object-fit: cover;
   display: block;
+  border-radius: 0 0 28px 28px; /* suaviza só os cantos de baixo, onde encosta no título */
 }
 
 .title-wrap {
@@ -895,4 +896,41 @@ input[type="file"] {
 .name-list__meta {
   font-size: 0.85rem;
   color: var(--color-ink-soft);
+}
+
+/* --- Páginas de texto (privacidade, termos) --------------------------- */
+
+.legal-page h2 {
+  font-family: 'Cinzel', serif;
+  font-size: 1.05rem;
+  color: var(--color-primary-dark);
+  margin: 22px 0 8px;
+}
+
+.legal-page h2:first-of-type {
+  margin-top: 4px;
+}
+
+.legal-page p {
+  margin: 0 0 12px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--color-ink);
+}
+
+.legal-links {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+}
+
+.legal-links a {
+  color: var(--color-ink-soft);
+}
+
+.legal-updated {
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+  font-style: italic;
 }
