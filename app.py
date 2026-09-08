@@ -3,6 +3,7 @@ import os
 import io
 import uuid
 import json
+import socket
 from functools import wraps
 from datetime import datetime
 
@@ -10,6 +11,15 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 from PIL import Image
+
+# Sem isso, uma chamada de rede pro Google (Sheets/Drive/verificação de
+# login) que travar por qualquer motivo fica esperando resposta pra
+# sempre — quem acaba interrompendo é o próprio Render, matando o processo
+# depois de 30s sem aviso nenhum pro usuário (é assim que aparece aquele
+# 500 "no meio" de uma chamada de rede no log). Com um tempo-limite global,
+# a chamada falha sozinha antes disso, dentro do try/except de cada rota,
+# e quem está usando o app vê uma mensagem de erro decente em vez de travar.
+socket.setdefaulttimeout(25)
 
 try:
     # pillow-heif NÃO está no requirements.txt: no Windows local ele exige
@@ -632,6 +642,18 @@ def competicao_enviar_nota(key):
 
     try:
         ws = get_worksheet(cfg["sheet_name"], headers)
+
+        # Evita que duas pessoas pontuando ao mesmo tempo sobrescrevam uma
+        # nota já enviada por outra — confere se essa linha já tem total
+        # gravado antes de escrever por cima.
+        linha_atual = ws.row_values(row_number)
+        total_col_index = len(headers)  # "total" é sempre a última coluna
+        if len(linha_atual) >= total_col_index and linha_atual[total_col_index - 1]:
+            return jsonify({
+                "ok": False,
+                "errors": ["Essa pessoa já foi pontuada (por outra pessoa, ao que parece). Atualize a página (F5) pra ver a nota."],
+            }), 409
+
         start_col = 4  # coluna D: logo após nome/cla/telefone
         end_col = start_col + len(valores)  # coluna do total
         start_a1 = rowcol_to_a1(row_number, start_col)
@@ -854,6 +876,20 @@ def submit():
             )
 
     return jsonify({"ok": True, "purchase_id": purchase_id, "avisos": avisos})
+
+
+@app.errorhandler(404)
+def erro_404(exc):
+    return render_template("erro.html", codigo=404), 404
+
+
+@app.errorhandler(500)
+def erro_500(exc):
+    # Rede de segurança geral: cobre qualquer falha que escape dos
+    # try/except específicos de cada rota (ex.: erro dentro do próprio
+    # template, algo inesperado na infraestrutura) — mostra uma mensagem
+    # decente em vez da tela padrão feia do Flask.
+    return render_template("erro.html", codigo=500), 500
 
 
 if __name__ == "__main__":

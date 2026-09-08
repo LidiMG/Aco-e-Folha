@@ -208,9 +208,19 @@ o link definitivo é do tipo `https://SEU-SERVICO.onrender.com`).
   Isso é o que permite o app comprimir fotos `.heic` (comuns em iPhone)
   também — sem esse passo extra, fotos de iPhone ainda funcionam, só não
   são comprimidas antes do upload.
-- **Start Command**: `gunicorn app:app --workers 3` — 3 processos em
-  paralelo, pra equipe conseguir enviar várias compras ao mesmo tempo sem
-  fila. Cabe tranquilo nos 512MB de RAM do plano gratuito.
+- **Start Command**: `gunicorn app:app --workers 3 --timeout 45` — 3
+  processos em paralelo, pra equipe conseguir enviar várias compras ao
+  mesmo tempo sem fila. Cabe tranquilo nos 512MB de RAM do plano
+  gratuito. O `--timeout 45` dá mais folga (padrão do gunicorn é 30s)
+  antes de considerar um processo "travado" e matá-lo — importante bem
+  no momento em que o serviço está acordando do modo gratuito, quando
+  as chamadas ao Google costumam ficar mais lentas que o normal.
+- **Tempo-limite de rede no próprio código**: `socket.setdefaulttimeout(25)`
+  no topo do `app.py` garante que uma chamada ao Google (Sheets, Drive,
+  verificação de login) que travar falha sozinha em 25s — dentro do
+  try/except de cada rota, mostrando um erro decente — em vez de ficar
+  pendurada até o gunicorn cortar o processo (que aí sim gera um 500 sem
+  mensagem nenhuma pra quem está usando).
 - **Plano Free**: o serviço "dorme" depois de 15 minutos sem acesso, e
   demora uns 30-60 segundos pra acordar no primeiro acesso seguinte —
   isso é normal, não é erro. Ficar dias sem uso não tem problema nenhum,
