@@ -14,6 +14,12 @@ document.addEventListener("DOMContentLoaded", () => {
     errorBanner.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  // Aceita vírgula como separador decimal (padrão brasileiro) além do ponto.
+  // Sem isso, parseFloat("8,5") entende só "8" e descarta o ",5" em silêncio,
+  // sem erro nenhum — a nota gravaria errada sem ninguém perceber.
+  function parseScoreValue(v) {
+    return parseFloat(String(v).trim().replace(",", "."));
+  }
   function hideErrors() {
     if (errorBanner) errorBanner.hidden = true;
   }
@@ -32,7 +38,7 @@ document.addEventListener("DOMContentLoaded", () => {
     input.addEventListener("input", () => {
       const row = input.closest(".competitor-row");
       const inputs = Array.from(row.querySelectorAll(".input-tiro"));
-      const total = inputs.reduce((sum, i) => sum + (parseFloat(i.value) || 0), 0);
+      const total = inputs.reduce((sum, i) => sum + (parseScoreValue(i.value) || 0), 0);
       row.querySelector("[data-total]").textContent = total;
     });
   });
@@ -49,8 +55,12 @@ document.addEventListener("DOMContentLoaded", () => {
         showErrors(["Preencha todas as notas antes de enviar."]);
         return;
       }
-      if (tiros.some((v) => isNaN(parseFloat(v)) || parseFloat(v) < 0)) {
+      if (tiros.some((v) => isNaN(parseScoreValue(v)) || parseScoreValue(v) < 0)) {
         showErrors(["Cada nota precisa ser um número válido (0 ou mais)."]);
+        return;
+      }
+      if (tiros.some((v) => !Number.isInteger(parseScoreValue(v)))) {
+        showErrors(["Cada nota precisa ser um número inteiro (sem casas decimais)."]);
         return;
       }
 
@@ -62,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const response = await fetch(`/competicoes/${key}/pontuar`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ row: rowNumber, tiros: tiros.map((v) => parseFloat(v)) }),
+          body: JSON.stringify({ row: rowNumber, tiros: tiros.map((v) => parseScoreValue(v)) }),
         });
         const data = await response.json();
 

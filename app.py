@@ -262,6 +262,17 @@ def marcar_homonimos(rows):
     return rows
 
 
+def sanitize_cell(value):
+    """Evita "injeção de fórmula" em planilhas: se um texto vindo de quem
+    preenche o formulário começar com um caractere que o Google Sheets
+    interpreta como início de fórmula (=, +, -, @), prefixa com aspas
+    simples pra forçar leitura como texto puro. Sem isso, um nome digitado
+    como "=1+1" (ou algo pior) viraria uma fórmula executada na planilha."""
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@"):
+        return "'" + value
+    return value
+
+
 # Fotos são redimensionadas e recomprimidas antes de subir pro Drive — o
 # comprovante só precisa ser legível, não em alta resolução, e isso evita
 # gastar o espaço do Drive à toa (fotos de celular fácil passam de 5-8MB).
@@ -512,8 +523,23 @@ def competicao_swordplay_enviar():
 
     cfg = ACTIVITIES["swordplay"]
     atualizados = 0
+    erros = []
     try:
         ws = get_worksheet(cfg["sheet_name"], SWORDPLAY_HEADERS)
+
+        # Mapa de quem já ocupa cada posição hoje (pra barrar duplicata mesmo
+        # contra o que foi salvo em envios anteriores, não só nesta leva).
+        linhas_atuais = read_modality_rows(cfg["sheet_name"], SWORDPLAY_HEADERS)
+        nome_por_linha = {r["_row"]: r.get("nome", "essa pessoa") for r in linhas_atuais}
+        ocupadas = {}
+        for r in linhas_atuais:
+            p = r.get("posicao")
+            if p:
+                try:
+                    ocupadas[int(p)] = r["_row"]
+                except (TypeError, ValueError):
+                    pass
+
         for item in posicoes:
             posicao = item.get("posicao")
             row_number = item.get("row")
@@ -522,13 +548,28 @@ def competicao_swordplay_enviar():
                 continue
             try:
                 posicao_num = int(posicao)
+                if posicao_num < 1:
+                    raise ValueError
             except (TypeError, ValueError):
                 continue
+
+            dono_atual = ocupadas.get(posicao_num)
+            if dono_atual is not None and dono_atual != row_number:
+                nome = nome_por_linha.get(row_number, "essa pessoa")
+                erros.append(
+                    f"Posição {posicao_num} já pertence a outra pessoa — não salvei para {nome}."
+                )
+                continue
+
             cell = rowcol_to_a1(row_number, len(SWORDPLAY_HEADERS))  # coluna "posicao"
             ws.update(cell, [[posicao_num]], value_input_option="USER_ENTERED")
+            ocupadas[posicao_num] = row_number  # já conta como ocupada pro resto deste envio
             atualizados += 1
     except Exception as exc:  # noqa: BLE001
         return jsonify({"ok": False, "errors": [f"Erro ao gravar as posições: {exc}"]}), 502
+
+    if erros:
+        return jsonify({"ok": False, "errors": erros, "atualizados": atualizados}), 400
 
     return jsonify({"ok": True, "atualizados": atualizados})
 
@@ -582,7 +623,9 @@ def competicao_enviar_nota(key):
                 raise ValueError
         except (TypeError, ValueError):
             return jsonify({"ok": False, "errors": ["Cada nota precisa ser um número válido (0 ou mais)."]}), 400
-        valores.append(n)
+        if not float(n).is_integer():
+            return jsonify({"ok": False, "errors": ["Cada nota precisa ser um número inteiro (sem casas decimais)."]}), 400
+        valores.append(int(n))
 
     total = round(sum(valores), 2)
     headers = score_headers(cfg["num_tiros"])
@@ -739,11 +782,11 @@ def submit():
                     valor_unitario,
                     valor_unitario,  # quantidade 1 nessa linha, então total = unitário
                     forma_pagamento,
-                    competidor["nome"],
-                    competidor["telefone"],
-                    competidor["cla"],
+                    sanitize_cell(competidor["nome"]),
+                    sanitize_cell(competidor["telefone"]),
+                    sanitize_cell(competidor["cla"]),
                     photo_link,
-                    responsavel_nome,
+                    sanitize_cell(responsavel_nome),
                     responsavel_email,
                 ])
 
@@ -769,7 +812,7 @@ def submit():
                 "",
                 "",
                 photo_link,
-                responsavel_nome,
+                sanitize_cell(responsavel_nome),
                 responsavel_email,
             ])
 
@@ -795,10 +838,10 @@ def submit():
         comp_rows = []
         for c in competidores:
             row = [""] * len(headers)
-            row[headers.index("nome")] = c["nome"]
-            row[headers.index("telefone")] = c["telefone"]
+            row[headers.index("nome")] = sanitize_cell(c["nome"])
+            row[headers.index("telefone")] = sanitize_cell(c["telefone"])
             if "cla" in headers:
-                row[headers.index("cla")] = c["cla"]
+                row[headers.index("cla")] = sanitize_cell(c["cla"])
             comp_rows.append(row)
 
         try:

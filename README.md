@@ -267,6 +267,14 @@ Uma planilha só, com uma aba por finalidade. Nomes configurados em
 atividade) — **precisam bater exatamente** com o nome da aba na sua
 planilha (maiúsculas/acentos importam):
 
+**Proteção contra fórmula acidental (ou maliciosa)**: qualquer texto
+digitado por quem preenche o formulário (nome, telefone, clã) passa por
+`sanitize_cell()` antes de ir para a planilha — se começar com `=`, `+`,
+`-` ou `@`, ganha um apóstrofo na frente, forçando o Google Sheets a
+tratar como texto puro em vez de tentar interpretar como fórmula. Sem
+isso, um nome digitado como `=1+1` viraria uma fórmula executada de
+verdade na célula.
+
 | Aba | O que recebe |
 |---|---|
 | `aquisicao` | Uma linha por atividade comprada — ver colunas abaixo |
@@ -346,9 +354,10 @@ mesmo; se acontecer, dá para perceber olhando a planilha depois).
 
 - **Arco e Flecha / Arremesso de Machado** (`/competicoes/<atividade>`):
   lista os inscritos daquela aba, em ordem alfabética, com um emoji por
-  atividade para identificar rápido. Quem ainda não pontuou aparece
+  atividade para identificar rapidamente. Quem ainda não pontuou aparece
   clicável — toque no nome pra abrir os quadrados de pontuação (4 tentativas no
-  Arco, 3 no Machado), o total soma sozinho conforme digita, e o botão
+  Arco, 3 no Machado — **sempre números inteiros, sem casas decimais**),
+  o total soma sozinho conforme digita, e o botão
   Enviar grava só a nota daquela pessoa. Depois de enviado, o nome fica
   cinza e sem clique, com o clã abaixo do nome e o total à direita, tudo
   no mesmo tom de cinza. A lista não atualiza sozinha — um link de
@@ -356,10 +365,12 @@ mesmo; se acontecer, dá para perceber olhando a planilha depois).
 - **Swordplay** (`/competicoes/swordplay`): lista alfabética com um
   campo de posição por pessoa e **um único botão Enviar** no rodapé —
   manda a lista inteira de uma vez, mas só grava quem tem posição
-  preenchida (não sobrescreve com vazio quem já tinha). O
-  acompanhamento de quem enfrenta quem é feito no papel, fora do app —
-  aqui só entra o resultado final, e dá para reenviar quantas vezes
-  precisar ao longo do dia.
+  preenchida (não sobrescreve com vazio quem já tinha). **Não deixa duas
+  pessoas ficarem com a mesma posição** — se tentar, essa pessoa
+  específica fica de fora (com aviso), enquanto o resto do envio é
+  salvo normalmente. O acompanhamento de quem enfrenta quem é feito no
+  papel, fora do app — aqui só entra o resultado final, e dá para
+  reenviar quantas vezes precisar ao longo do dia.
 - **Resultados** (`/resultados`): Top 3 automático de cada torneio (por
   total no Arco/Machado, por posição no Swordplay), e para cada atividade
   cultural uma lista alfabética simples dos inscritos, sem nota — o
