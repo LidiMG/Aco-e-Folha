@@ -41,7 +41,7 @@ from config import (
     NOME_ABA_AQUISICAO,
     COMPETITOR_SHEET_HEADERS,
     CULTURAL_SHEET_HEADERS,
-    SWORDPLAY_HEADERS,
+    RANKING_HEADERS,
     TORNEIO_FISICOS,
     TORNEIO_CULTURAIS,
     score_headers,
@@ -510,36 +510,27 @@ def competicoes():
     return render_template("competicoes_hub.html", itens=itens)
 
 
-@app.route("/competicoes/swordplay")
-def competicao_swordplay():
-    cfg = ACTIVITIES["swordplay"]
-    erro = None
-    try:
-        rows = marcar_homonimos(ordenar_por_nome(read_modality_rows(cfg["sheet_name"], SWORDPLAY_HEADERS)))
-    except Exception as exc:  # noqa: BLE001
-        rows = []
-        erro = str(exc)
-    return render_template("swordplay.html", cfg=cfg, rows=rows, erro=erro)
-
-
-@app.route("/competicoes/swordplay", methods=["POST"])
-def competicao_swordplay_enviar():
+@app.route("/competicoes/<key>/posicao", methods=["POST"])
+def competicao_enviar_posicao(key):
     from gspread.utils import rowcol_to_a1
+
+    cfg = ACTIVITIES.get(key)
+    if not cfg or key not in TORNEIO_FISICOS or cfg.get("num_tiros"):
+        return jsonify({"ok": False, "errors": ["Atividade inválida."]}), 400
 
     payload = request.get_json(silent=True) or {}
     posicoes = payload.get("posicoes")
     if not isinstance(posicoes, list):
         return jsonify({"ok": False, "errors": ["Dados inválidos."]}), 400
 
-    cfg = ACTIVITIES["swordplay"]
     atualizados = 0
     erros = []
     try:
-        ws = get_worksheet(cfg["sheet_name"], SWORDPLAY_HEADERS)
+        ws = get_worksheet(cfg["sheet_name"], RANKING_HEADERS)
 
         # Mapa de quem já ocupa cada posição hoje (pra barrar duplicata mesmo
         # contra o que foi salvo em envios anteriores, não só nesta leva).
-        linhas_atuais = read_modality_rows(cfg["sheet_name"], SWORDPLAY_HEADERS)
+        linhas_atuais = read_modality_rows(cfg["sheet_name"], RANKING_HEADERS)
         nome_por_linha = {r["_row"]: r.get("nome", "essa pessoa") for r in linhas_atuais}
         ocupadas = {}
         for r in linhas_atuais:
@@ -571,7 +562,7 @@ def competicao_swordplay_enviar():
                 )
                 continue
 
-            cell = rowcol_to_a1(row_number, len(SWORDPLAY_HEADERS))  # coluna "posicao"
+            cell = rowcol_to_a1(row_number, len(RANKING_HEADERS))  # coluna "posicao"
             ws.update(cell, [[posicao_num]], value_input_option="USER_ENTERED")
             ocupadas[posicao_num] = row_number  # já conta como ocupada pro resto deste envio
             atualizados += 1
@@ -587,10 +578,10 @@ def competicao_swordplay_enviar():
 @app.route("/competicoes/<key>")
 def competicao_pontuar(key):
     cfg = ACTIVITIES.get(key)
-    if not cfg or key not in TORNEIO_FISICOS or not cfg.get("num_tiros"):
+    if not cfg or key not in TORNEIO_FISICOS:
         return redirect(url_for("competicoes"))
 
-    headers = score_headers(cfg["num_tiros"])
+    headers = sheet_headers_for(key, cfg)
     erro = None
     try:
         rows = marcar_homonimos(ordenar_por_nome(read_modality_rows(cfg["sheet_name"], headers)))
@@ -598,14 +589,19 @@ def competicao_pontuar(key):
         rows = []
         erro = str(exc)
 
-    return render_template(
-        "competicao_pontuar.html",
-        cfg=cfg,
-        key=key,
-        rows=rows,
-        tiro_indices=list(range(1, cfg["num_tiros"] + 1)),
-        erro=erro,
-    )
+    if cfg.get("num_tiros"):
+        return render_template(
+            "competicao_pontuar.html",
+            cfg=cfg,
+            key=key,
+            rows=rows,
+            tiro_indices=list(range(1, cfg["num_tiros"] + 1)),
+            erro=erro,
+        )
+
+    # Sem num_tiros: atividade do tipo "ranking manual" (Swordplay, Rachar
+    # Lenha, e outras que vierem no mesmo molde) — mesma tela pra todas.
+    return render_template("competicao_ranking.html", cfg=cfg, key=key, rows=rows, erro=erro)
 
 
 @app.route("/competicoes/<key>/pontuar", methods=["POST"])
@@ -697,9 +693,9 @@ def resultado_atividade(key):
             rows, erro = [], str(exc)
         return render_template("resultado_cultural.html", cfg=cfg, rows=rows, erro=erro)
 
-    if key == "swordplay":
+    if key in TORNEIO_FISICOS and not cfg.get("num_tiros"):
         try:
-            rows = read_modality_rows(cfg["sheet_name"], SWORDPLAY_HEADERS)
+            rows = read_modality_rows(cfg["sheet_name"], RANKING_HEADERS)
         except Exception as exc:  # noqa: BLE001
             rows, erro = [], str(exc)
         else:
@@ -849,9 +845,10 @@ def submit():
         }), 502
 
     # Copia os competidores pras abas de cada atividade (arco_flecha, machado,
-    # swordplay, vestimenta, bardos, feiticos). A compra já foi salva com
-    # sucesso acima — se isso aqui falhar (ex.: aba não existe ainda), a
-    # compra continua válida, só avisa em vez de travar o envio.
+    # swordplay, rachar_lenha, vestimenta, bardos, feiticos, beberrao). A
+    # compra já foi salva com sucesso acima — se isso aqui falhar (ex.: aba
+    # não existe ainda), a compra continua válida, só avisa em vez de travar
+    # o envio.
     for activity_key, competidores in competitor_rows_by_activity.items():
         cfg = ACTIVITIES[activity_key]
         sheet_name = cfg["sheet_name"]

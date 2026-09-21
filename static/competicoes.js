@@ -92,19 +92,20 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ------------------------------------------------------------------
-  // Tela do Swordplay
+  // Tela de ranking manual (Swordplay, Rachar Lenha, etc.)
   // ------------------------------------------------------------------
-  const swordplayForm = document.getElementById("swordplayForm");
-  if (swordplayForm) {
+  const rankingForm = document.getElementById("rankingForm");
+  if (rankingForm) {
     const submitBtn = document.getElementById("submitBtn");
     const successBanner = document.getElementById("successBanner");
+    const key = rankingForm.dataset.key;
 
-    swordplayForm.addEventListener("submit", async (event) => {
+    rankingForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       hideErrors();
       if (successBanner) successBanner.hidden = true;
 
-      const posicoes = Array.from(document.querySelectorAll(".swordplay-row")).map((row) => ({
+      const posicoes = Array.from(document.querySelectorAll(".ranking-row")).map((row) => ({
         row: parseInt(row.dataset.row, 10),
         posicao: row.querySelector(".input-posicao").value.trim(),
       }));
@@ -113,7 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
       submitBtn.textContent = "Enviando...";
 
       try {
-        const response = await fetch("/competicoes/swordplay", {
+        const response = await fetch(`/competicoes/${key}/posicao`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ posicoes }),

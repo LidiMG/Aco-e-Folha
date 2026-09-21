@@ -3,8 +3,8 @@
 Este projeto foi desenvolvido para o evento **Aço & Folha**, para dar conta
 de três frentes que antes seriam planilhas separadas e soltas: registrar as
 compras de atividades, lançar os resultados dos torneios físicos
-(Arco e Flecha, Arremesso de Machado, Swordplay) e acompanhar as atividades
-culturais (Vestimenta, Bardos, Feitiços, Beberrão).
+(Arco e Flecha, Arremesso de Machado, Swordplay, Rachar Lenha) e acompanhar
+as atividades culturais (Vestimenta, Bardos, Feitiços, Beberrão).
 
 É um app web mobile (instalável como PWA), sem custo de hospedagem paga
 obrigatório, e sem depender de planilhas soltas e desencontradas — tudo
@@ -29,8 +29,8 @@ O app tem uma tela inicial com três caminhos:
   Tudo isso vira uma linha na planilha, por atividade.
 - **Competições** (`/competicoes`, sem login) — os instrutores lançam os
   resultados: quadrados de pontuação para Arco e Flecha/Arremesso de
-  Machado (a nota soma sozinha), e a posição final no ranking para o
-  Swordplay.
+  Machado (a nota soma sozinha), e a posição final no ranking para
+  Swordplay e Rachar Lenha.
 - **Resultados** (`/resultados`, sem login) — o Top 3 de cada torneio,
   calculado automaticamente a partir das notas lançadas, e a lista de
   inscritos de cada atividade cultural (que é decidida por voto popular,
@@ -61,10 +61,13 @@ evento-app/
 │   ├── index.html                # Formulário de Aquisição
 │   ├── competicoes_hub.html      # Hub de Competições
 │   ├── competicao_pontuar.html   # Lançamento de notas (Arco/Machado)
-│   ├── swordplay.html            # Lançamento de posição (Swordplay)
+│   ├── competicao_ranking.html   # Lançamento de posição (Swordplay, Rachar Lenha, ...)
 │   ├── resultados_hub.html       # Hub de Resultados
 │   ├── resultado_torneio.html    # Top 3 de um torneio
 │   ├── resultado_cultural.html   # Lista alfabética de uma atividade cultural
+│   ├── privacidade.html          # Política de Privacidade (link p/ OAuth em produção)
+│   ├── termos.html                # Termos de Serviço (idem)
+│   ├── erro.html                  # Página 404/500 amigável (rede de segurança geral)
 │   └── coming_soon.html          # Template genérico "em construção" (reserva)
 └── static/
     ├── style.css
@@ -72,7 +75,8 @@ evento-app/
     ├── competicoes.js            # Lógica das telas de Competições
     ├── manifest.json
     ├── service-worker.js
-    ├── icon-192.png / icon-512.png
+    ├── icon-192.png / icon-512.png             # ícone "any" (iPhone/Windows/Mac)
+    ├── icon-192-maskable.png / icon-512-maskable.png  # ícone "maskable" (Android)
     └── img/hero-aco-folha.jpg    # Imagem de topo da tela inicial
 ```
 
@@ -111,10 +115,10 @@ processo com a conta oficial da equipe quando for para produção.
    O arquivo `.json` da service account tem um campo `client_email`
    (algo como `evento-app-bot@evento-app.iam.gserviceaccount.com`).
    Crie uma planilha Google Sheets, com abas para `aquisicao`,
-   `arco_flecha`, `machado`, `swordplay`, `vestimenta`, `bardos` e
-   `feiticos` (os nomes exatos ficam configurados em `config.py`), e
-   compartilhe a planilha inteira com esse e-mail como **Editor**. Copie
-   o ID da planilha (fica na URL, entre `/d/` e `/edit`).
+   `arco_flecha`, `machado`, `swordplay`, `rachar_lenha`, `vestimenta`,
+   `bardos`, `feiticos` e `beberrao` (os nomes exatos ficam configurados
+   em `config.py`), e compartilhe a planilha inteira com esse e-mail como
+   **Editor**. Copie o ID da planilha (fica na URL, entre `/d/` e `/edit`).
 
 5. **Autorizar o upload de fotos com a sua conta pessoal**
    Diferente da planilha, o Drive **não aceita** que a service account
@@ -290,7 +294,7 @@ verdade na célula.
 | `aquisicao` | Uma linha por atividade comprada — ver colunas abaixo |
 | `arco_flecha` | Inscritos + notas dos 4 tiros + total |
 | `machado` | Inscritos + notas dos 3 tiros + total |
-| `swordplay` | Inscritos + posição final no ranking |
+| `swordplay`, `rachar_lenha` | Inscritos + posição final no ranking |
 | `vestimenta`, `bardos`, `feiticos`, `beberrao` | Só os inscritos (nome/telefone) |
 
 O cabeçalho de qualquer uma dessas abas é criado sozinho na primeira vez
@@ -317,21 +321,22 @@ que o app precisa ler ou escrever nela — não precisa criar manualmente.
   na planilha, sem nenhum aviso na tela para quem está atendendo (achamos
   que só confundiria, sem ação nenhuma que desse para fazer ali na hora).
 - **nome_competidor / telefone_competidor / cla_competidor**: preenchidos
-  para todas as competições (as 3 físicas, só em modo Competição; as 4
+  para todas as competições (as 4 físicas, só em modo Competição; as 4
   culturais, sempre). Nome e telefone (com DDD) são obrigatórios em
-  todas. **Clã só existe nas 3 físicas** (Arco, Machado, Swordplay) e lá
-  é opcional — as culturais (Vestimenta, Bardos, Feitiços, Beberrão) não
-  coletam clã nenhum, nem nesta aba nem nas abas próprias delas. Cada
-  competidor vira sua própria linha, com `quantidade` sempre 1 — mesmo
-  que várias pessoas comprem juntas, evitando contar errado ao somar a
-  coluna.
+  todas. **Clã só existe nas 4 físicas** (Arco, Machado, Swordplay,
+  Rachar Lenha) e lá é opcional — as culturais (Vestimenta, Bardos,
+  Feitiços, Beberrão) não coletam clã nenhum, nem nesta aba nem nas abas
+  próprias delas. Cada competidor vira sua própria linha, com
+  `quantidade` sempre 1 — mesmo que várias pessoas comprem juntas,
+  evitando contar errado ao somar a coluna.
 - **Treino e Competição da mesma atividade na mesma compra**: são seções
   independentes na tela — dá para marcar as duas ao mesmo tempo.
-- **Homônimos**: nas telas de Competições (Arco, Machado, Swordplay), se
-  dois inscritos tiverem o mesmo nome, o telefone aparece automaticamente
-  embaixo do nome dos dois, só nesse caso — para dar para diferenciar quem
-  é quem. Sem homônimos, a tela continua só com nome e clã, sem poluir.
-  Nas culturais isso nem é preciso, porque o telefone já aparece sempre.
+- **Homônimos**: nas telas de Competições (Arco, Machado, Swordplay,
+  Rachar Lenha), se dois inscritos tiverem o mesmo nome, o telefone
+  aparece automaticamente embaixo do nome dos dois, só nesse caso — para
+  dar para diferenciar quem é quem. Sem homônimos, a tela continua só
+  com nome e clã, sem poluir. Nas culturais isso nem é preciso, porque o
+  telefone já aparece sempre.
 
 ### Alimentação automática das abas de atividade
 
@@ -339,8 +344,10 @@ Toda compra em modo Competição também copia nome/telefone (e clã, nas
 físicas) para a aba da atividade correspondente — para já chegar pronta para o
 instrutor usar, sem copiar nada manualmente. Cada atividade usa o
 cabeçalho certo para ela (`sheet_headers_for()` em `config.py` decide:
-físicas com pontuação ganham colunas de tiro/total, Swordplay ganha
-coluna de posição, culturais ficam só com nome/telefone) — é a mesma
+físicas com pontuação ganham colunas de tiro/total; físicas sem
+pontuação — Swordplay, Rachar Lenha, e qualquer outra do mesmo molde que
+vier depois — ganham coluna de posição; culturais ficam só com
+nome/telefone) — é a mesma
 função usada tanto para alimentar quanto para ler depois, então não tem
 risco de uma tela esperar um formato de coluna diferente do que a outra
 gravou. Se a aba não existir, a compra continua sendo salva normalmente
@@ -372,17 +379,22 @@ mesmo; se acontecer, dá para perceber olhando a planilha depois).
   cinza e sem clique, com o clã abaixo do nome e o total à direita, tudo
   no mesmo tom de cinza. A lista não atualiza sozinha — um link de
   "atualizar página" cobre novos inscritos chegando ao longo do dia.
-- **Swordplay** (`/competicoes/swordplay`): lista alfabética com um
+- **Swordplay / Rachar Lenha** (`/competicoes/swordplay`,
+  `/competicoes/rachar_lenha`): lista alfabética com um
   campo de posição por pessoa e **um único botão Enviar** no rodapé —
   manda a lista inteira de uma vez, mas só grava quem tem posição
   preenchida (não sobrescreve com vazio quem já tinha). **Não deixa duas
   pessoas ficarem com a mesma posição** — se tentar, essa pessoa
   específica fica de fora (com aviso), enquanto o resto do envio é
-  salvo normalmente. O acompanhamento de quem enfrenta quem é feito no
+  salvo normalmente. O acompanhamento de quem enfrenta quem (Swordplay)
+  ou de cada tentativa (Rachar Lenha) é feito no
   papel, fora do app — aqui só entra o resultado final, e dá para
-  reenviar quantas vezes precisar ao longo do dia.
+  reenviar quantas vezes precisar ao longo do dia. As duas usam a mesma
+  tela (`competicao_ranking.html`) — é a mesma lógica genérica de
+  "atividade física sem tiro", não um código duplicado por atividade.
 - **Resultados** (`/resultados`): Top 3 automático de cada torneio (por
-  total no Arco/Machado, por posição no Swordplay), e para cada atividade
+  total no Arco/Machado, por posição no Swordplay/Rachar Lenha), e para
+  cada atividade
   cultural uma lista alfabética simples dos inscritos, sem nota — o
   resultado dessas é decidido fora do app: por voto popular em
   Vestimenta, Bardos e Feitiços, e por quem bebe mais rápido em

@@ -40,6 +40,16 @@ ACTIVITIES = {
         "num_tiros": None,      # não pontua por tiros — usa posição final no ranking
         "icon": "⚔️",
     },
+    "rachar_lenha": {
+        "label": "Rachar Lenha",
+        "has_mode": False,       # não tem Treino, só Competição
+        "fixed_mode": "Competição",
+        "collects_competitor_names": True,
+        "preco_unitario": 20.00,  # mesmo valor da Competição no Swordplay
+        "sheet_name": "rachar_lenha",
+        "num_tiros": None,      # mesmo molde do Swordplay — posição final no ranking
+        "icon": "🪵",
+    },
     "vestimenta": {
         "label": "Vestimenta",
         "has_mode": False,
@@ -96,9 +106,9 @@ ACTIVITIES = {
     # },
 }
 
-# As 3 atividades físicas de torneio, na ordem em que aparecem nas telas de
+# As atividades físicas de torneio, na ordem em que aparecem nas telas de
 # Competições/Resultados. Culturais ficam à parte (TORNEIO_CULTURAIS abaixo).
-TORNEIO_FISICOS = ["arco_flecha", "arremesso_machado", "swordplay"]
+TORNEIO_FISICOS = ["arco_flecha", "arremesso_machado", "swordplay", "rachar_lenha"]
 TORNEIO_CULTURAIS = ["vestimenta", "bardos", "feiticos", "beberrao"]
 
 MODE_OPTIONS = ["Treino", "Competição"]
@@ -108,7 +118,7 @@ PAYMENT_OPTIONS = ["PIX", "Dinheiro"]
 NOME_ABA_AQUISICAO = "aquisicao"
 COMPETITOR_SHEET_HEADERS = ["nome", "cla", "telefone"]  # físicas, antes de pontuar/posicionar
 CULTURAL_SHEET_HEADERS = ["nome", "telefone"]           # culturais — sem clã
-SWORDPLAY_HEADERS = ["nome", "cla", "telefone", "posicao"]
+RANKING_HEADERS = ["nome", "cla", "telefone", "posicao"]  # físicas sem tiro — Swordplay, Rachar Lenha etc.
 
 
 def score_headers(num_tiros):
@@ -123,11 +133,13 @@ def sheet_headers_for(key, cfg):
     partir da Aquisição) ou pra ler nas telas de Competições/Resultados —
     usar sempre esta função garante que todo mundo concorda no mesmo
     cabeçalho, sem risco de uma tela reescrever com um formato diferente
-    do que outra espera."""
-    if key == "swordplay":
-        return SWORDPLAY_HEADERS
-    if cfg.get("num_tiros"):
-        return score_headers(cfg["num_tiros"])
+    do que outra espera. Qualquer física sem num_tiros (Swordplay, Rachar
+    Lenha, e outras que vierem no mesmo molde) usa RANKING_HEADERS — não é
+    mais um caso especial só do Swordplay."""
+    if key in TORNEIO_FISICOS:
+        if cfg.get("num_tiros"):
+            return score_headers(cfg["num_tiros"])
+        return RANKING_HEADERS
     if cfg.get("collects_cla", True):
         return COMPETITOR_SHEET_HEADERS
     return CULTURAL_SHEET_HEADERS

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Swordplay — Aço &amp; Folha</title>
+<title>{{ cfg.label }} — Aço &amp; Folha</title>
 <meta name="theme-color" content="#3B5D42">
 <link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,7 +13,7 @@
 <body>
 
 <header class="topbar">
-  <h1>Swordplay</h1>
+  <h1>{{ cfg.label }}</h1>
   <p class="topbar__subtitle">Posição final no ranking</p>
   <p class="topbar__user">
     <a href="{{ url_for('competicoes') }}">‹ Competições</a>
@@ -35,7 +35,7 @@
   </div>
 
   <p class="section-hint">
-    Preencha só quem já duelou (quem não tem posição fica de fora). Pode
+    Preencha só quem já tem resultado (quem não tem posição fica de fora). Pode
     reenviar quantas vezes precisar durante o dia —
     <a href="javascript:location.reload()">atualize a página</a> pra ver
     novos inscritos.
@@ -45,14 +45,14 @@
   <p class="empty-hint">Ninguém inscrito nesta atividade ainda.</p>
   {% endif %}
 
-  <form id="swordplayForm">
+  <form id="rankingForm" data-key="{{ key }}">
     <div class="competitor-list">
       {% for row in rows %}
-      <div class="swordplay-row" data-row="{{ row._row }}">
-        <span class="swordplay-row__nameblock">
-          <span class="swordplay-row__name">{{ row.nome }}</span>
-          <span class="swordplay-row__cla">{{ row.cla }}</span>
-          {% if row._duplicado %}<span class="swordplay-row__telefone">{{ row.telefone }}</span>{% endif %}
+      <div class="ranking-row" data-row="{{ row._row }}">
+        <span class="ranking-row__nameblock">
+          <span class="ranking-row__name">{{ row.nome }}</span>
+          <span class="ranking-row__cla">{{ row.cla }}</span>
+          {% if row._duplicado %}<span class="ranking-row__telefone">{{ row.telefone }}</span>{% endif %}
         </span>
         <input type="number" class="input-posicao" inputmode="numeric" min="1" step="1"
                placeholder="Posição" value="{{ row.posicao }}" aria-label="Posição de {{ row.nome }}">
