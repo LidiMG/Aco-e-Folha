@@ -760,6 +760,10 @@ def submit():
         return jsonify({"ok": False, "errors": errors}), 400
 
     purchase_id = uuid.uuid4().hex[:8]
+    # Na planilha, o ID vai com apóstrofo na frente pra ser sempre texto:
+    # sem isso, o Sheets "traduz" IDs como 12e45678 (notação científica)
+    # ou 00123456 (perde os zeros), quebrando o ID da compra.
+    purchase_id_celula = "'" + purchase_id
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     photo_link = ""
@@ -792,7 +796,7 @@ def submit():
             # com quantidade 1, pra não contar errado ao somar a coluna quantidade.
             for competidor in competidores:
                 rows.append([
-                    purchase_id,
+                    purchase_id_celula,
                     timestamp,
                     cfg["label"],
                     modo,
@@ -818,7 +822,7 @@ def submit():
         else:
             valor_total = format_brl(round(preco_unitario * quantidade, 2)) if preco_unitario is not None else ""
             rows.append([
-                purchase_id,
+                purchase_id_celula,
                 timestamp,
                 cfg["label"],
                 modo,
