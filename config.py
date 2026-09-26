@@ -45,7 +45,7 @@ ACTIVITIES = {
         "has_mode": False,       # não tem Treino, só Competição
         "fixed_mode": "Competição",
         "collects_competitor_names": True,
-        "preco_unitario": 20.00,  # mesmo valor da Competição no Swordplay
+        "preco_unitario": 10.00,
         "sheet_name": "rachar_lenha",
         "num_tiros": None,      # mesmo molde do Swordplay — posição final no ranking
         "icon": "🪵",
@@ -89,7 +89,7 @@ ACTIVITIES = {
         "fixed_mode": "Competição",
         "collects_competitor_names": True,
         "collects_cla": False,
-        "preco_unitario": 20.00,  # mesma regra das demais culturais
+        "preco_unitario": 10.00,
         "sheet_name": "beberrao",
         "icon": "🍺",
         "regra_resultado": "Vence quem beber mais rápido",
