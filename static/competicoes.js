@@ -158,8 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
         formData.append("tiros", JSON.stringify(tiros.map((v) => parseScoreValue(v))));
         formData.append("foto_alvo", foto);
 
-        const response = await fetch(`/competicoes/${key}/pontuar`, { method: "POST", body: formData });
-        const data = await response.json();
+        const data = await window.enviarAoServidor(`/competicoes/${key}/pontuar`, { method: "POST", body: formData });
 
         if (data.ok) {
           const rascunho = lerRascunhoNotas();
@@ -173,7 +172,10 @@ document.addEventListener("DOMContentLoaded", () => {
           btn.textContent = "Enviar";
         }
       } catch (err) {
-        showErrors(["Falha de conexão. As notas e a foto continuam aqui — verifique a internet e toque em Enviar de novo."]);
+        showErrors([
+          err.message || "Falha de conexão.",
+          "As notas e a foto continuam aqui: toque em Enviar de novo. Se a nota já tiver sido salva, o app avisa e não grava duas vezes.",
+        ]);
         btn.disabled = false;
         btn.textContent = "Enviar";
       }
@@ -203,12 +205,11 @@ document.addEventListener("DOMContentLoaded", () => {
       submitBtn.textContent = "Enviando...";
 
       try {
-        const response = await fetch(`/competicoes/${key}/posicao`, {
+        const data = await window.enviarAoServidor(`/competicoes/${key}/posicao`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ posicoes }),
         });
-        const data = await response.json();
 
         if (data.ok) {
           if (successBanner) {
@@ -219,7 +220,10 @@ document.addEventListener("DOMContentLoaded", () => {
           showErrors(data.errors || ["Erro desconhecido ao enviar. Tente novamente."]);
         }
       } catch (err) {
-        showErrors(["Falha de conexão. Verifique a internet e tente novamente."]);
+        showErrors([
+          err.message || "Falha de conexão.",
+          "As posições continuam preenchidas: toque em Enviar de novo (reenviar não duplica nada).",
+        ]);
       } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = "Enviar posições";

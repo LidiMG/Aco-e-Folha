@@ -5,6 +5,7 @@ import uuid
 import json
 import re
 import socket
+import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
@@ -245,7 +246,7 @@ def get_worksheet(sheet_name=None, headers=None):
     headers = headers or SHEET_HEADERS
 
     try:
-        ws = _abas_abertas.get(sheet_name) or sh.worksheet(sheet_name)
+        ws = _abas_abertas.get(sheet_name) or tentar_google(sh.worksheet, sheet_name)
         _abas_abertas[sheet_name] = ws
     except Exception as exc:
         raise RuntimeError(
@@ -259,9 +260,9 @@ def get_worksheet(sheet_name=None, headers=None):
     # extra no Google por aba, a cada envio (lentidão com várias pessoas).
     chave = (sheet_name, tuple(headers))
     if chave not in _cabecalhos_conferidos:
-        first_row = ws.row_values(1)
+        first_row = tentar_google(ws.row_values, 1)
         if first_row != headers:
-            ws.update("A1", [headers])
+            tentar_google(ws.update, "A1", [headers])
         _cabecalhos_conferidos.add(chave)
     return ws
 
@@ -272,7 +273,7 @@ def read_modality_rows(sheet_name, headers):
     contando o cabeçalho) — necessário pra depois atualizar aquela linha
     específica sem mexer nas demais."""
     ws = get_worksheet(sheet_name, headers)
-    all_values = ws.get_all_values()
+    all_values = tentar_google(ws.get_all_values)
     result = []
     for row_number, row in enumerate(all_values[1:], start=2):
         padded = row + [""] * (len(headers) - len(row))
@@ -299,6 +300,75 @@ def marcar_homonimos(rows):
     return rows
 
 
+# ---------------------------------------------------------------------------
+# Tratamento de erros com o Google (v2)
+# ---------------------------------------------------------------------------
+# Falhas passageiras do Google (limite de uso por minuto, instabilidade,
+# conexão lenta) são tentadas de novo automaticamente, e quem está usando o
+# app recebe mensagens claras em vez de textos técnicos — os detalhes vão
+# para o log do Render.
+_STATUS_PASSAGEIROS = {429, 500, 502, 503, 504}
+_STATUS_SEGUROS_PARA_REPETIR_GRAVACAO = {429, 503}  # o Google recusou: nada foi gravado
+
+
+def _status_http(exc):
+    resposta = getattr(exc, "response", None) or getattr(exc, "resp", None)
+    status = getattr(resposta, "status_code", None) or getattr(resposta, "status", None)
+    try:
+        return int(status)
+    except (TypeError, ValueError):
+        return None
+
+
+def _falha_de_conexao(exc):
+    import requests
+    return isinstance(exc, (TimeoutError, socket.timeout, ConnectionError, requests.exceptions.RequestException))
+
+
+def tentar_google(fn, *args, repetivel=True, **kwargs):
+    """Chama o Google e, se a falha for passageira, tenta de novo (até 3
+    vezes no total, esperando 1s e depois 2s).
+
+    repetivel=False é para gravações que acrescentam linhas (append): nesse
+    caso só repete quando o Google recusou explicitamente (limite de uso ou
+    indisponível), porque numa conexão cortada a linha pode já ter sido
+    gravada, e repetir criaria linha duplicada."""
+    esperas = [1, 2]
+    while True:
+        try:
+            return fn(*args, **kwargs)
+        except Exception as exc:  # noqa: BLE001
+            status = _status_http(exc)
+            if repetivel:
+                passageira = status in _STATUS_PASSAGEIROS or _falha_de_conexao(exc)
+            else:
+                passageira = status in _STATUS_SEGUROS_PARA_REPETIR_GRAVACAO
+            if not passageira or not esperas:
+                raise
+            espera = esperas.pop(0)
+            app.logger.warning("Falha passageira do Google (%s); tentando de novo em %ss", exc, espera)
+            time.sleep(espera)
+
+
+def mensagem_amigavel(exc, acao):
+    """Transforma um erro técnico em uma mensagem que a equipe entende.
+    `acao` completa a frase: "Não foi possível <acao> agora"."""
+    app.logger.error("Falha ao %s: %r", acao, exc, exc_info=exc)
+    if isinstance(exc, RuntimeError):
+        # Erros de configuração escritos por nós (aba com nome errado,
+        # credencial ausente): a mensagem já diz o que fazer.
+        return str(exc)
+    status = _status_http(exc)
+    if status == 429:
+        return ("O Google está recebendo muitos envios ao mesmo tempo. Aguarde uns "
+                "10 segundos e tente de novo.")
+    if _falha_de_conexao(exc) or status in _STATUS_PASSAGEIROS:
+        return (f"Não foi possível {acao} agora: a conexão com o Google falhou ou demorou "
+                "demais. Tente de novo em alguns segundos.")
+    return (f"Não foi possível {acao} agora. Tente de novo em alguns segundos; se continuar, "
+            "avise a organização.")
+
+
 def copiar_competidores_para_abas(competitor_rows_by_activity):
     """Grava nome/telefone (e clã) de cada competidor na aba da atividade."""
     for activity_key, competidores in competitor_rows_by_activity.items():
@@ -316,16 +386,17 @@ def copiar_competidores_para_abas(competitor_rows_by_activity):
             comp_rows.append(row)
 
         try:
-            get_worksheet(sheet_name, headers).append_rows(comp_rows, value_input_option="USER_ENTERED")
+            ws = get_worksheet(sheet_name, headers)
+            tentar_google(ws.append_rows, comp_rows, value_input_option="USER_ENTERED", repetivel=False)
         except Exception as exc:  # noqa: BLE001
-            app.logger.error("Não consegui copiar os competidores para a aba '%s': %s", sheet_name, exc)
+            app.logger.error("Não consegui copiar os competidores para a aba '%s': %r", sheet_name, exc, exc_info=exc)
 
 
 def compra_ja_registrada(purchase_id, ws=None):
     """True se esse código de compra já está na coluna id_compra da aba
     aquisicao (a planilha devolve o texto sem o apóstrofo de proteção)."""
     ws = ws or get_worksheet()
-    return purchase_id in ws.col_values(1)[1:]
+    return purchase_id in tentar_google(ws.col_values, 1)[1:]
 
 
 def sanitize_cell(value):
@@ -405,13 +476,13 @@ def upload_photo_to_drive(file_storage, nome_base, folder_id=None, publica=False
     if folder_id:
         file_metadata["parents"] = [folder_id]
 
-    created = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+    created = tentar_google(service.files().create(body=file_metadata, media_body=media, fields="id").execute)
     file_id = created["id"]
 
     if publica:
-        service.permissions().create(
+        tentar_google(service.permissions().create(
             fileId=file_id, body={"type": "anyone", "role": "reader"}
-        ).execute()
+        ).execute)
 
     return f"https://drive.google.com/file/d/{file_id}/view"
 
@@ -654,11 +725,11 @@ def competicao_enviar_posicao(key):
                 continue
 
             cell = rowcol_to_a1(row_number, col_posicao)
-            ws.update(cell, [[posicao_num]], value_input_option="USER_ENTERED")
+            tentar_google(ws.update, cell, [[posicao_num]], value_input_option="USER_ENTERED")
             ocupadas[posicao_num] = row_number  # já conta como ocupada pro resto deste envio
             atualizados += 1
     except Exception as exc:  # noqa: BLE001
-        return jsonify({"ok": False, "errors": [f"Erro ao gravar as posições: {exc}"]}), 502
+        return jsonify({"ok": False, "errors": [mensagem_amigavel(exc, "gravar as posições")], "atualizados": atualizados}), 502
 
     if erros:
         return jsonify({"ok": False, "errors": erros, "atualizados": atualizados}), 400
@@ -678,7 +749,7 @@ def competicao_pontuar(key):
         rows = marcar_homonimos(ordenar_por_nome(read_modality_rows(cfg["sheet_name"], headers)))
     except Exception as exc:  # noqa: BLE001
         rows = []
-        erro = str(exc)
+        erro = mensagem_amigavel(exc, "carregar a lista de inscritos")
 
     if cfg.get("num_tiros"):
         return render_template(
@@ -752,30 +823,34 @@ def competicao_enviar_nota(key):
 
         # Evita que duas pessoas pontuando ao mesmo tempo sobrescrevam uma
         # nota já enviada por outra.
-        linha_atual = ws.row_values(row_number)
+        linha_atual = tentar_google(ws.row_values, row_number)
         if len(linha_atual) >= col_total and linha_atual[col_total - 1]:
             return jsonify({
                 "ok": False,
                 "errors": ["Essa pessoa já foi pontuada (por outra pessoa, ao que parece). Atualize a página (F5) pra ver a nota."],
             }), 409
     except Exception as exc:  # noqa: BLE001
-        return jsonify({"ok": False, "errors": [f"Erro ao acessar a planilha: {exc}"]}), 502
+        return jsonify({"ok": False, "errors": [mensagem_amigavel(exc, "conferir a planilha")]}), 502
 
     # A foto é a prova do desempate: se não chegar ao Drive, a nota NÃO é salva.
     try:
         foto_link = envio_foto.result(timeout=40)
     except Exception as exc:  # noqa: BLE001
+        app.logger.error("Foto do alvo não chegou ao Drive (%s, linha %s): %r", key, row_number, exc, exc_info=exc)
         return jsonify({
             "ok": False,
-            "errors": [f"A foto do alvo não foi enviada, então a nota não foi salva. Tente enviar de novo. ({exc})"],
+            "errors": [
+                "A foto do alvo não chegou ao Drive, então a nota não foi salva. "
+                "As notas e a foto continuam na tela: toque em Enviar de novo.",
+            ],
         }), 502
 
     try:
         start_a1 = rowcol_to_a1(row_number, 4)  # coluna D: logo após nome/cla/telefone
         end_a1 = rowcol_to_a1(row_number, col_total + 1)  # até a coluna foto_alvo
-        ws.update(f"{start_a1}:{end_a1}", [valores + [total, foto_link]], value_input_option="USER_ENTERED")
+        tentar_google(ws.update, f"{start_a1}:{end_a1}", [valores + [total, foto_link]], value_input_option="USER_ENTERED")
     except Exception as exc:  # noqa: BLE001
-        return jsonify({"ok": False, "errors": [f"Erro ao gravar a nota: {exc}"]}), 502
+        return jsonify({"ok": False, "errors": [mensagem_amigavel(exc, "gravar a nota")]}), 502
 
     return jsonify({"ok": True, "total": total})
 
@@ -811,11 +886,11 @@ def foto_alvo(file_id):
     if file_id not in _fotos_em_cache:
         try:
             service = get_drive_service()
-            meta = service.files().get(fileId=file_id, fields="parents,mimeType").execute()
+            meta = tentar_google(service.files().get(fileId=file_id, fields="parents,mimeType").execute)
             # Só entrega fotos da pasta Alvos — nunca comprovantes de PIX.
             if DRIVE_ALVOS_FOLDER_ID not in (meta.get("parents") or []):
                 return render_template("erro.html", codigo=404), 404
-            conteudo = service.files().get_media(fileId=file_id).execute()
+            conteudo = tentar_google(service.files().get_media(fileId=file_id).execute)
         except Exception as exc:  # noqa: BLE001
             app.logger.error("Falha ao buscar a foto do alvo %s: %s", file_id, exc)
             return render_template("erro.html", codigo=500), 502
@@ -857,7 +932,7 @@ def resultado_atividade(key):
     try:
         rows = read_modality_rows(cfg["sheet_name"], headers)
     except Exception as exc:  # noqa: BLE001
-        return render_template("resultado_torneio.html", cfg=cfg, top3=[], erro=str(exc))
+        return render_template("resultado_torneio.html", cfg=cfg, top3=[], erro=mensagem_amigavel(exc, "carregar os resultados"))
 
     if cfg.get("num_tiros"):
         def total_key(r):
@@ -928,7 +1003,7 @@ def submit():
             if compra_ja_registrada(purchase_id):
                 return jsonify({"ok": True, "purchase_id": purchase_id, "avisos": [], "ja_registrada": True})
         except Exception as exc:  # noqa: BLE001
-            return jsonify({"ok": False, "errors": [f"Erro ao acessar a planilha: {exc}"]}), 502
+            return jsonify({"ok": False, "errors": [mensagem_amigavel(exc, "conferir a planilha")]}), 502
 
     # Na planilha, o ID vai com apóstrofo na frente pra ser sempre texto:
     # sem isso, o Sheets "traduz" IDs como 12e45678 (notação científica)
@@ -943,9 +1018,7 @@ def submit():
             photo_link = envio_foto.result(timeout=40)
         except Exception as exc:  # noqa: BLE001 — captura qualquer falha do Google
             photo_link = "Imagem não recebida"
-            avisos.append(
-                f"Não foi possível enviar a foto ao Google Drive (a compra foi salva mesmo assim): {exc}"
-            )
+            app.logger.error("Comprovante não chegou ao Drive (compra %s salva mesmo assim): %r", purchase_id, exc)
 
     rows = []
     competitor_rows_by_activity = {}
@@ -1014,12 +1087,14 @@ def submit():
         # tentativas da mesma compra chegando quase juntas.
         if compra_ja_registrada(purchase_id, ws):
             return jsonify({"ok": True, "purchase_id": purchase_id, "avisos": [], "ja_registrada": True})
-        ws.append_rows(rows, value_input_option="USER_ENTERED")
+        tentar_google(ws.append_rows, rows, value_input_option="USER_ENTERED", repetivel=False)
     except Exception as exc:  # noqa: BLE001
-        detalhe = "A foto foi enviada, mas" if photo_link else "Os dados foram validados, mas"
         return jsonify({
             "ok": False,
-            "errors": [f"{detalhe} houve um erro ao gravar na planilha: {exc}"],
+            "errors": [
+                mensagem_amigavel(exc, "registrar a compra na planilha"),
+                "Pode tocar em Enviar de novo: se a compra tiver chegado, ela não será duplicada.",
+            ],
         }), 502
 
     # Copia os competidores pras abas de cada atividade. A compra já está
@@ -1047,7 +1122,14 @@ def erro_500(exc):
     # Rede de segurança geral: cobre qualquer falha que escape dos
     # try/except específicos de cada rota (ex.: erro dentro do próprio
     # template, algo inesperado na infraestrutura) — mostra uma mensagem
-    # decente em vez da tela padrão feia do Flask.
+    # decente em vez da tela padrão feia do Flask. Nos envios (POST), a tela
+    # espera JSON, então a resposta vai em JSON com uma mensagem clara.
+    app.logger.error("Erro inesperado em %s %s: %r", request.method, request.path, exc)
+    if request.method == "POST":
+        return jsonify({"ok": False, "errors": [
+            "Aconteceu um erro inesperado no servidor. Tente de novo em alguns segundos; "
+            "se continuar, avise a organização."
+        ]}), 500
     return render_template("erro.html", codigo=500), 500
 
 

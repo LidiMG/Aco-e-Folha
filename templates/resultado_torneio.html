@@ -44,9 +44,7 @@
         {% if row._foto_id %}
         <details class="podium-item__foto">
           <summary>📷 Ver foto do alvo</summary>
-          <a href="{{ url_for('foto_alvo', file_id=row._foto_id) }}" target="_blank" rel="noopener">
-            <img src="{{ url_for('foto_alvo', file_id=row._foto_id) }}" loading="lazy" alt="Foto do alvo de {{ row.nome }}">
-          </a>
+          <img class="foto-ampliavel" src="{{ url_for('foto_alvo', file_id=row._foto_id) }}" loading="lazy" alt="Foto do alvo de {{ row.nome }}">
           <span class="podium-item__foto-dica">Toque na foto para ampliar.</span>
         </details>
         {% endif %}
@@ -60,6 +58,45 @@
   {% endif %}
 
 </main>
+
+<!-- Foto ampliada dentro do próprio app (v2). Antes abria em outra janela,
+     e o "voltar" do celular fechava o app em vez de voltar para cá. -->
+<div id="fotoAmpliada" class="foto-ampliada" hidden>
+  <button type="button" class="foto-ampliada__fechar" aria-label="Fechar foto">✕</button>
+  <img alt="">
+</div>
+
+<script>
+  (function () {
+    const tela = document.getElementById("fotoAmpliada");
+    const img = tela.querySelector("img");
+    let aberta = false;
+
+    function abrir(src, alt) {
+      img.src = src;
+      img.alt = alt;
+      tela.hidden = false;
+      aberta = true;
+      // Cria um "passo" no histórico: o voltar do celular fecha a foto,
+      // em vez de sair do app.
+      history.pushState({ fotoAmpliada: true }, "");
+    }
+
+    function fechar() {
+      tela.hidden = true;
+      aberta = false;
+    }
+
+    document.querySelectorAll(".foto-ampliavel").forEach((foto) => {
+      foto.addEventListener("click", () => abrir(foto.src, foto.alt));
+    });
+
+    // Botão ✕ ou toque fora da foto: volta um passo (o que fecha a foto).
+    tela.addEventListener("click", () => { if (aberta) history.back(); });
+
+    window.addEventListener("popstate", () => { if (aberta) fechar(); });
+  })();
+</script>
 
 </body>
 </html>

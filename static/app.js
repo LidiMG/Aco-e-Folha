@@ -394,8 +394,7 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("purchase_id", compraId);
 
     try {
-      const response = await fetch("/submit", { method: "POST", body: formData });
-      const data = await response.json();
+      const data = await window.enviarAoServidor("/submit", { method: "POST", body: formData });
 
       if (data.ok) {
         limparRascunho();
@@ -409,7 +408,19 @@ document.addEventListener("DOMContentLoaded", () => {
         showErrors(data.errors || ["Erro desconhecido ao enviar. Tente novamente."]);
       }
     } catch (err) {
-      showErrors(["Falha de conexão. Verifique a internet e tente novamente."]);
+      salvarRascunho(); // garante que nada se perde, seja qual for o erro
+      if (err.tipo === "sessao") {
+        showErrors([
+          "Sua sessão de login expirou. O que foi preenchido está salvo neste celular: " +
+          "atualize a página, entre de novo com o Google e a compra volta preenchida " +
+          "(se for PIX, tire a foto de novo).",
+        ]);
+      } else {
+        showErrors([
+          err.message || "Falha de conexão.",
+          "Pode tocar em Enviar de novo: se a compra tiver chegado ao servidor, ela não será duplicada.",
+        ]);
+      }
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = "Enviar compra";

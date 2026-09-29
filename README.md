@@ -469,13 +469,42 @@ e **Atividades Culturais**.
   ganhou. Isso é diferente de Competições, onde o telefone fica escondido
   de propósito (só aparece em homônimos).
 
+## 10.1. Tratamento de erros (v2)
+
+O endereço do Render (`https://SEU-SERVICO.onrender.com`) é o endereço
+definitivo do app. O que antes estava planejado "para depois do domínio
+definitivo" foi feito na v2:
+
+- **Falhas passageiras do Google são tentadas de novo sozinhas**
+  (`tentar_google()` em `app.py`): limite de uso por minuto, instabilidade
+  ou conexão lenta ganham até 3 tentativas, com 1s e 2s de espera.
+  Gravações que acrescentam linhas (a compra na aba `aquisicao` e a cópia
+  para as abas das atividades) só são repetidas quando o Google recusou
+  explicitamente — numa conexão cortada, a linha pode já ter sido gravada,
+  e repetir criaria linha duplicada.
+- **Mensagens claras para a equipe** (`mensagem_amigavel()`): em vez de
+  textos técnicos do Google, a tela diz o que aconteceu e o que fazer
+  (esperar alguns segundos, tentar de novo, avisar a organização). Os
+  detalhes técnicos vão para os Logs do Render. Erros de configuração
+  (aba com nome errado, credencial ausente) continuam mostrando a
+  explicação completa, porque ela diz exatamente o que corrigir.
+- **Envio pelo celular com tratamento próprio** (`static/rede.js`): sem
+  internet, envio que passa de 60 segundos, sessão de login expirada e
+  servidor reiniciando têm cada um sua mensagem. O botão nunca fica preso
+  em "Enviando...". Em qualquer erro, nada do que foi preenchido se perde,
+  e reenviar é seguro: a compra não duplica e a nota não é gravada duas
+  vezes.
+- **Sessão expirada na Aquisição**: o preenchido fica salvo no celular;
+  basta atualizar a página, entrar de novo e a compra volta preenchida.
+- **Erro inesperado no servidor**: nas telas, aparece a página amigável de
+  erro; nos envios, uma mensagem em JSON que a tela consegue mostrar.
+
 ## 11. Próximos passos possíveis (não implementados ainda)
 
 - Editar/cancelar uma compra ou nota enviada por engano.
 - Reincluir "Desafio de caça ao tesouro" quando for confirmado — basta
   descomentar o bloco em `config.py`.
-- Tratamento de erros mais robusto (planejado para depois do deploy no
-  domínio definitivo).
+
 
 ## Histórico de versões
 
@@ -496,6 +525,10 @@ do que a equipe viveu no dia:
   só (em vez de a cada envio) e gunicorn com threads.
 - **Sem compra duplicada**: uma nova tentativa de envio da mesma compra
   (depois de erro de conexão) não gera mais um segundo registro.
+- **Tratamento de erros**: novas tentativas automáticas em falhas
+  passageiras do Google, mensagens claras para a equipe e envio pelo
+  celular que reconhece falta de internet, sessão expirada e servidor
+  reiniciando (seção 10.1).
 - **Proteção contra a "tela branca"**: o formulário da Aquisição e as
   notas do Arco/Machado são restaurados se o navegador recarregar ao
   voltar da câmera.
