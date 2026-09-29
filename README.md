@@ -389,6 +389,14 @@ mesmo; se acontecer, dá para perceber olhando a planilha depois).
   enfrentou no evento). Agora o que foi preenchido fica guardado no
   próprio aparelho por até 30 minutos e é restaurado sozinho, com um
   aviso; só a foto precisa ser tirada de novo.
+- **Sem compra duplicada em nova tentativa (v2)**: o código da compra
+  (`id_compra`) é criado pelo celular antes de enviar e reaproveitado se o
+  atendente tentar de novo. No evento da v1, uma compra foi gravada duas
+  vezes com códigos diferentes: a primeira chegou à planilha, mas a
+  resposta não voltou a tempo (rede lenta) e o envio foi repetido. Agora,
+  se o código já está na planilha, o servidor não grava de novo e só
+  confirma a compra. O código novo só é gerado ao tocar em "Registrar nova
+  compra".
 - **Comprovantes privados (v2)**: na v1 cada comprovante era aberto para
   qualquer pessoa com o link. Agora ficam privados na pasta de
   `GOOGLE_DRIVE_FOLDER_ID` (ver seção 4).
@@ -462,6 +470,8 @@ do que a equipe viveu no dia:
 - **Mais velocidade com várias pessoas enviando ao mesmo tempo**: foto
   comprimida no próprio celular, cabeçalho de cada aba conferido uma vez
   só (em vez de a cada envio) e gunicorn com threads.
+- **Sem compra duplicada**: uma nova tentativa de envio da mesma compra
+  (depois de erro de conexão) não gera mais um segundo registro.
 - **Proteção contra a "tela branca"**: o formulário da Aquisição e as
   notas do Arco/Machado são restaurados se o navegador recarregar ao
   voltar da câmera.

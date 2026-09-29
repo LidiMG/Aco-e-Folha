@@ -22,6 +22,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const pagamentoGroup = document.querySelector('[data-role="pagamento"]');
   const totalValueEl = document.getElementById("totalValue");
 
+  // --- Código da compra (v2) ------------------------------------------------
+  // Criado aqui, antes do envio, e reaproveitado em qualquer nova tentativa
+  // da MESMA compra. Se a primeira tentativa chegou ao servidor mas a
+  // resposta se perdeu, a segunda é reconhecida e não vira duplicata.
+  // Só muda ao tocar em "Registrar nova compra".
+  function novoIdCompra() {
+    const bytes = new Uint8Array(4);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  let compraId = novoIdCompra();
+
   // --- Valor total da compra, recalculado a cada mudança -----------------
   function formatBRL(value) {
     const fixed = value.toFixed(2);
@@ -375,6 +387,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     formData.append("forma_pagamento", pagamentoChecked.value);
     formData.append("activities_json", JSON.stringify(activities));
+    formData.append("purchase_id", compraId);
 
     try {
       const response = await fetch("/submit", { method: "POST", body: formData });
@@ -382,7 +395,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (data.ok) {
         limparRascunho();
-        successId.textContent = data.purchase_id;
+        successId.textContent = data.ja_registrada
+          ? `${data.purchase_id} (a tentativa anterior já tinha sido registrada — não foi duplicada)`
+          : data.purchase_id;
         successBanner.hidden = false;
         form.hidden = true;
         successBanner.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -399,6 +414,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   newSubmissionBtn.addEventListener("click", () => {
     limparRascunho();
+    compraId = novoIdCompra();
     form.reset();
     form.hidden = false;
     stepPhoto.hidden = false;
@@ -458,6 +474,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify({
         salvoEm: Date.now(),
+        compraId,
         pagamento: pagamento ? pagamento.value : null,
         itens,
       }));
@@ -482,6 +499,8 @@ document.addEventListener("DOMContentLoaded", () => {
       limparRascunho();
       return;
     }
+
+    if (/^[0-9a-f]{8}$/.test(rascunho.compraId || "")) compraId = rascunho.compraId;
 
     const porChave = {};
     containersDeAtividade().forEach((container) => { porChave[containerKey(container)] = container; });

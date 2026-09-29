@@ -3,6 +3,7 @@ import os
 import io
 import uuid
 import json
+import re
 import socket
 from functools import wraps
 from datetime import datetime
@@ -284,6 +285,13 @@ def marcar_homonimos(rows):
         chave = r.get("nome", "").strip().lower()
         r["_duplicado"] = contagem.get(chave, 0) > 1
     return rows
+
+
+def compra_ja_registrada(purchase_id, ws=None):
+    """True se esse código de compra já está na coluna id_compra da aba
+    aquisicao (a planilha devolve o texto sem o apóstrofo de proteção)."""
+    ws = ws or get_worksheet()
+    return purchase_id in ws.col_values(1)[1:]
 
 
 def sanitize_cell(value):
@@ -808,7 +816,21 @@ def submit():
     if errors:
         return jsonify({"ok": False, "errors": errors}), 400
 
-    purchase_id = uuid.uuid4().hex[:8]
+    # v2: o código da compra é criado pelo celular ANTES de enviar e
+    # reaproveitado em qualquer nova tentativa. Assim, se a primeira tentativa
+    # chegou a ser gravada mas a resposta não voltou (rede lenta), a segunda
+    # não vira uma compra duplicada com outro código — como aconteceu no
+    # evento da v1.
+    purchase_id = (request.form.get("purchase_id") or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{8}", purchase_id):
+        purchase_id = uuid.uuid4().hex[:8]  # celular com app antigo: gera aqui
+
+    try:
+        if compra_ja_registrada(purchase_id):
+            return jsonify({"ok": True, "purchase_id": purchase_id, "avisos": [], "ja_registrada": True})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"ok": False, "errors": [f"Erro ao acessar a planilha: {exc}"]}), 502
+
     # Na planilha, o ID vai com apóstrofo na frente pra ser sempre texto:
     # sem isso, o Sheets "traduz" IDs como 12e45678 (notação científica)
     # ou 00123456 (perde os zeros), quebrando o ID da compra.
@@ -889,6 +911,10 @@ def submit():
 
     try:
         ws = get_worksheet()
+        # Confere de novo logo antes de gravar: cobre o caso raro de duas
+        # tentativas da mesma compra chegando quase juntas.
+        if compra_ja_registrada(purchase_id, ws):
+            return jsonify({"ok": True, "purchase_id": purchase_id, "avisos": [], "ja_registrada": True})
         ws.append_rows(rows, value_input_option="USER_ENTERED")
     except Exception as exc:  # noqa: BLE001
         detalhe = "A foto foi enviada, mas" if photo_link else "Os dados foram validados, mas"
