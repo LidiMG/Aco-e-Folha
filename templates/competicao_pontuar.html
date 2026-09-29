@@ -31,7 +31,8 @@
   </div>
 
   <p class="section-hint">
-    Toque num nome para lançar a pontuação. Novos inscritos não aparecem sozinhos —
+    Toque num nome para lançar a pontuação. A foto final do alvo é
+    obrigatória (serve para desempate). Novos inscritos não aparecem sozinhos —
     <a href="javascript:location.reload()">atualize a página</a> de tempos em tempos.
   </p>
 
@@ -66,6 +67,14 @@
             <input type="number" class="input-tiro" inputmode="decimal" min="0" step="any" placeholder="{{ i }}ª" aria-label="{{ i }}ª tentativa">
             {% endfor %}
           </div>
+          <div class="alvo-foto">
+            <label class="alvo-foto__botao">
+              <span aria-hidden="true">📷</span>
+              <span class="alvo-foto__texto">Tirar foto do alvo</span>
+              <input type="file" class="input-foto-alvo" accept="image/*" capture="environment" hidden>
+            </label>
+            <img class="alvo-foto__preview" hidden alt="Pré-visualização da foto do alvo">
+          </div>
           <div class="competitor-row__footer">
             <span class="competitor-row__total-live">Total: <strong data-total>0</strong></span>
             <button type="button" class="btn btn--primary btn--small" data-enviar>Enviar</button>
@@ -78,6 +87,7 @@
 
 </main>
 
+<script src="{{ url_for('static', filename='fotos.js') }}"></script>
 <script src="{{ url_for('static', filename='competicoes.js') }}"></script>
 </body>
 </html>

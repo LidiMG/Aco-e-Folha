@@ -934,3 +934,48 @@ input[type="file"] {
   color: var(--color-ink-soft);
   font-style: italic;
 }
+
+/* --- v2: avisos informativos ------------------------------------------- */
+
+.banner--info {
+  background: #EEF3EA;
+  color: var(--color-primary-dark);
+  border: 1px solid #C9D8C4;
+}
+
+/* --- v2: foto do alvo (Arco/Machado) ------------------------------------ */
+
+.alvo-foto {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.alvo-foto__botao {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px dashed var(--color-accent);
+  border-radius: 8px;
+  background: #FBFAF4;
+  color: var(--color-primary-dark);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alvo-foto__preview {
+  max-width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.podium-item__foto {
+  font-size: 0.8rem;
+  color: var(--color-accent);
+  margin-top: 2px;
+}

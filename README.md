@@ -1,5 +1,8 @@
 # Aço & Folha — Sistema de Gestão do Evento
 
+**Versão 2** — revisada depois do uso real da versão 1 no evento (ver
+seção "Histórico de versões", no fim deste arquivo).
+
 Este projeto foi desenvolvido para o evento **Aço & Folha**, para dar conta
 de três frentes que antes seriam planilhas separadas e soltas: registrar as
 compras de atividades, lançar os resultados dos torneios físicos
@@ -27,18 +30,18 @@ O app tem uma tela inicial com três caminhos:
   atividades e quantidades (com preço calculado automaticamente), forma de
   pagamento, e nome/telefone/clã de quem vai competir, quando aplicável.
   Tudo isso vira uma linha na planilha, por atividade.
-- **Competições** (`/competicoes`, sem login) — os instrutores lançam os
-  resultados: quadrados de pontuação para Arco e Flecha/Arremesso de
-  Machado (a nota soma sozinha), e a posição final no ranking para
-  Swordplay e Rachar Lenha.
-- **Resultados** (`/resultados`, sem login) — o Top 3 de cada torneio,
-  calculado automaticamente a partir das notas lançadas, e a lista de
-  inscritos de cada atividade cultural (que é decidida por voto popular,
-  fora do app).
+- **Competições** (`/competicoes`, sem login) — organizada em Torneios e
+  Atividades Culturais. Os instrutores lançam os resultados: quadrados de
+  pontuação mais a foto final do alvo (obrigatória) para Arco e
+  Flecha/Arremesso de Machado, e a posição final no ranking para
+  Swordplay, Rachar Lenha e todas as culturais.
+- **Resultados** (`/resultados`, sem login) — o Top 3 de cada torneio e de
+  cada atividade cultural, calculado automaticamente a partir do que foi
+  lançado em Competições.
 
 ### Mapa do sistema (PDF)
 
-O arquivo `mapa-do-sistema.pdf`, incluído neste repositório, tem os
+O arquivo `mapa_do_sistema.pdf`, incluído neste repositório, tem os
 diagramas da estrutura completa do app — a tela inicial e os três modos,
 com o fluxo de dentro de cada um (Aquisição, Competições e Resultados).
 Serve como um guia visual rápido pra quem estiver sendo treinado pra usar
@@ -54,17 +57,16 @@ evento-app/
 ├── setup_drive_auth.py        # Script de autorização única do Drive (rodar localmente)
 ├── requirements.txt
 ├── .env.example                # Modelo do .env — copie e preencha
-├── mapa-do-sistema.pdf         # Diagramas da estrutura do app — bom pra treinar gente nova
+├── mapa_do_sistema.pdf         # Diagramas da estrutura do app — bom pra treinar gente nova
 ├── templates/
 │   ├── home.html               # Tela inicial (hub dos 3 modos)
 │   ├── login.html               # Login da equipe (Aquisição)
 │   ├── index.html                # Formulário de Aquisição
 │   ├── competicoes_hub.html      # Hub de Competições
 │   ├── competicao_pontuar.html   # Lançamento de notas (Arco/Machado)
-│   ├── competicao_ranking.html   # Lançamento de posição (Swordplay, Rachar Lenha, ...)
+│   ├── competicao_ranking.html   # Lançamento de posição (Swordplay, Rachar Lenha, culturais)
 │   ├── resultados_hub.html       # Hub de Resultados
 │   ├── resultado_torneio.html    # Top 3 de um torneio
-│   ├── resultado_cultural.html   # Lista alfabética de uma atividade cultural
 │   ├── privacidade.html          # Política de Privacidade (link p/ OAuth em produção)
 │   ├── termos.html                # Termos de Serviço (idem)
 │   ├── erro.html                  # Página 404/500 amigável (rede de segurança geral)
@@ -72,6 +74,7 @@ evento-app/
 └── static/
     ├── style.css
     ├── app.js                    # Lógica da tela de Aquisição
+    ├── fotos.js                  # Compressão da foto no próprio celular (v2)
     ├── competicoes.js            # Lógica das telas de Competições
     ├── manifest.json
     ├── service-worker.js
@@ -165,12 +168,24 @@ e preencha com os seus valores:
 ```
 GOOGLE_SERVICE_ACCOUNT_FILE=/caminho/para/sua-chave.json
 GOOGLE_SHEET_ID=id_da_planilha
-GOOGLE_DRIVE_FOLDER_ID=id_da_pasta_do_drive
+GOOGLE_DRIVE_FOLDER_ID=id_da_pasta_dos_comprovantes
+GOOGLE_DRIVE_ALVOS_FOLDER_ID=id_da_pasta_das_fotos_dos_alvos
 GOOGLE_OAUTH_CLIENT_ID=123...apps.googleusercontent.com
 GOOGLE_DRIVE_TOKEN_FILE=drive_token.json
 FLASK_SECRET_KEY=uma-string-longa-e-aleatoria-qualquer
 ALLOWED_EMAILS=
 ```
+
+**Duas pastas no Drive, com acessos diferentes (v2):**
+
+- `GOOGLE_DRIVE_FOLDER_ID` — comprovantes de PIX. **Privada**: os
+  comprovantes têm dados pessoais e bancários, então só quem tem acesso à
+  pasta consegue abri-los. Para outras pessoas da organização verem,
+  compartilhe a pasta com o e-mail de cada uma (não com "qualquer pessoa
+  com o link").
+- `GOOGLE_DRIVE_ALVOS_FOLDER_ID` — fotos finais dos alvos (Arco e
+  Machado). Compartilhada como **leitor para qualquer pessoa com o link**,
+  porque a tela de Resultados não exige login e precisa abrir essas fotos.
 
 O app lê esse arquivo sozinho toda vez que inicia — não precisa de
 `export` nenhum, em nenhum terminal, nunca mais. O `.env` já está
@@ -212,10 +227,12 @@ o link definitivo é do tipo `https://SEU-SERVICO.onrender.com`).
   Isso é o que permite o app comprimir fotos `.heic` (comuns em iPhone)
   também — sem esse passo extra, fotos de iPhone ainda funcionam, só não
   são comprimidas antes do upload.
-- **Start Command**: `gunicorn app:app --workers 3 --timeout 45` — 3
-  processos em paralelo, pra equipe conseguir enviar várias compras ao
-  mesmo tempo sem fila. Cabe tranquilo nos 512MB de RAM do plano
-  gratuito. O `--timeout 45` dá mais folga (padrão do gunicorn é 30s)
+- **Start Command**: `gunicorn app:app --workers 2 --threads 4 --timeout 45`
+  — 2 processos com 4 linhas de atendimento cada, ou seja, até 8 envios
+  ao mesmo tempo. Na v1 eram 3 processos simples, e no evento, com umas 5
+  pessoas enviando juntas, formava fila: como cada envio passa a maior
+  parte do tempo só esperando o Google responder, as threads aproveitam
+  essa espera sem gastar mais memória. O `--timeout 45` dá mais folga (padrão do gunicorn é 30s)
   antes de considerar um processo "travado" e matá-lo — importante bem
   no momento em que o serviço está acordando do modo gratuito, quando
   as chamadas ao Google costumam ficar mais lentas que o normal.
@@ -292,10 +309,10 @@ verdade na célula.
 | Aba | O que recebe |
 |---|---|
 | `aquisicao` | Uma linha por atividade comprada — ver colunas abaixo |
-| `arco_flecha` | Inscritos + notas dos 4 tiros + total |
-| `machado` | Inscritos + notas dos 3 tiros + total |
+| `arco_flecha` | Inscritos + notas dos 4 tiros + total + link da foto do alvo |
+| `machado` | Inscritos + notas dos 3 tiros + total + link da foto do alvo |
 | `swordplay`, `rachar_lenha` | Inscritos + posição final no ranking |
-| `vestimenta`, `bardos`, `feiticos`, `beberrao` | Só os inscritos (nome/telefone) |
+| `vestimenta`, `bardos`, `feiticos`, `beberrao` | Inscritos (nome/telefone, sem clã) + posição final |
 
 O cabeçalho de qualquer uma dessas abas é criado sozinho na primeira vez
 que o app precisa ler ou escrever nela — não precisa criar manualmente.
@@ -331,12 +348,10 @@ que o app precisa ler ou escrever nela — não precisa criar manualmente.
   evitando contar errado ao somar a coluna.
 - **Treino e Competição da mesma atividade na mesma compra**: são seções
   independentes na tela — dá para marcar as duas ao mesmo tempo.
-- **Homônimos**: nas telas de Competições (Arco, Machado, Swordplay,
-  Rachar Lenha), se dois inscritos tiverem o mesmo nome, o telefone
-  aparece automaticamente embaixo do nome dos dois, só nesse caso — para
-  dar para diferenciar quem é quem. Sem homônimos, a tela continua só
-  com nome e clã, sem poluir. Nas culturais isso nem é preciso, porque o
-  telefone já aparece sempre.
+- **Homônimos**: em todas as telas de Competições (torneios e culturais),
+  se dois inscritos tiverem o mesmo nome, o telefone aparece
+  automaticamente embaixo do nome dos dois, só nesse caso — para dar para
+  diferenciar quem é quem. Sem homônimos, o telefone não aparece ali.
 
 ### Alimentação automática das abas de atividade
 
@@ -346,8 +361,8 @@ instrutor usar, sem copiar nada manualmente. Cada atividade usa o
 cabeçalho certo para ela (`sheet_headers_for()` em `config.py` decide:
 físicas com pontuação ganham colunas de tiro/total; físicas sem
 pontuação — Swordplay, Rachar Lenha, e qualquer outra do mesmo molde que
-vier depois — ganham coluna de posição; culturais ficam só com
-nome/telefone) — é a mesma
+vier depois — ganham coluna de posição; culturais ficam com
+nome/telefone/posição, sem clã) — é a mesma
 função usada tanto para alimentar quanto para ler depois, então não tem
 risco de uma tela esperar um formato de coluna diferente do que a outra
 gravou. Se a aba não existir, a compra continua sendo salva normalmente
@@ -361,48 +376,66 @@ mesmo; se acontecer, dá para perceber olhando a planilha depois).
   do botão Enviar, quando a foto não aparece), recalculado a cada
   atividade/quantidade marcada — serve para conferir com o cliente antes
   de enviar.
-- **Fotos comprimidas antes do upload**: redimensionadas para no máximo
-  1600px no lado maior e recomprimidas em JPEG, mirando ~0,7MB por foto.
-  Ajustável em `app.py` (`MAX_PHOTO_DIMENSION`, `TARGET_PHOTO_BYTES`,
-  `MIN_JPEG_QUALITY`).
+- **Fotos comprimidas no próprio celular (v2)**: `static/fotos.js`
+  redimensiona para no máximo 1600px no lado maior e salva em JPEG,
+  mirando ~0,7MB, antes de enviar. Na v1 a foto saía do celular com 5 a
+  8MB e só o servidor comprimia, o que deixava tudo lento com várias
+  pessoas enviando juntas. O servidor ainda comprime como reserva, caso a
+  foto chegue grande (`MAX_PHOTO_DIMENSION`, `TARGET_PHOTO_BYTES`,
+  `MIN_JPEG_QUALITY` em `app.py`).
+- **Rascunho que sobrevive à câmera (v2)**: em celulares com pouca
+  memória, o Android pode fechar o navegador enquanto a câmera está
+  aberta, e a página voltava vazia (a "tela branca" que um atendente
+  enfrentou no evento). Agora o que foi preenchido fica guardado no
+  próprio aparelho por até 30 minutos e é restaurado sozinho, com um
+  aviso; só a foto precisa ser tirada de novo.
+- **Comprovantes privados (v2)**: na v1 cada comprovante era aberto para
+  qualquer pessoa com o link. Agora ficam privados na pasta de
+  `GOOGLE_DRIVE_FOLDER_ID` (ver seção 4).
 - **Quantidade**: escolhida com botões "−"/"+", sem limite máximo.
 
 ## 10. Competições e Resultados
+
+A tela de Competições é organizada como a de Resultados, em **Torneios**
+e **Atividades Culturais**.
 
 - **Arco e Flecha / Arremesso de Machado** (`/competicoes/<atividade>`):
   lista os inscritos daquela aba, em ordem alfabética, com um emoji por
   atividade para identificar rapidamente. Quem ainda não pontuou aparece
   clicável — toque no nome pra abrir os quadrados de pontuação (4 tentativas no
   Arco, 3 no Machado — **sempre números inteiros, sem casas decimais**),
-  o total soma sozinho conforme digita, e o botão
-  Enviar grava só a nota daquela pessoa. Depois de enviado, o nome fica
-  cinza e sem clique, com o clã abaixo do nome e o total à direita, tudo
-  no mesmo tom de cinza. A lista não atualiza sozinha — um link de
-  "atualizar página" cobre novos inscritos chegando ao longo do dia.
-- **Swordplay / Rachar Lenha** (`/competicoes/swordplay`,
-  `/competicoes/rachar_lenha`): lista alfabética com um
-  campo de posição por pessoa e **um único botão Enviar** no rodapé —
-  manda a lista inteira de uma vez, mas só grava quem tem posição
-  preenchida (não sobrescreve com vazio quem já tinha). **Não deixa duas
-  pessoas ficarem com a mesma posição** — se tentar, essa pessoa
-  específica fica de fora (com aviso), enquanto o resto do envio é
-  salvo normalmente. O acompanhamento de quem enfrenta quem (Swordplay)
-  ou de cada tentativa (Rachar Lenha) é feito no
-  papel, fora do app — aqui só entra o resultado final, e dá para
-  reenviar quantas vezes precisar ao longo do dia. As duas usam a mesma
-  tela (`competicao_ranking.html`) — é a mesma lógica genérica de
-  "atividade física sem tiro", não um código duplicado por atividade.
-- **Resultados** (`/resultados`): Top 3 automático de cada torneio (por
-  total no Arco/Machado, por posição no Swordplay/Rachar Lenha), e para
-  cada atividade
-  cultural uma lista alfabética simples dos inscritos, sem nota — o
-  resultado dessas é decidido fora do app: por voto popular em
-  Vestimenta, Bardos e Feitiços, e por quem bebe mais rápido em
-  Beberrão. Em ambos os casos (torneios e culturais), o telefone do
-  competidor aparece junto ao nome — os apresentadores usam pra
-  chamar/contatar quem ganhou. Isso é diferente de Competições, onde o
-  telefone fica escondido de propósito (os instrutores não precisam
-  dele, só poluiria a tela).
+  o total soma sozinho conforme digita.
+  **Foto final do alvo (v2)**: é obrigatória, porque é a prova usada pelo
+  organizador em caso de desempate. O botão Enviar só funciona com as
+  notas e a foto; a foto vai para a pasta de `GOOGLE_DRIVE_ALVOS_FOLDER_ID`
+  e o link fica na coluna `foto_alvo`. **Se a foto não chegar ao Drive, a
+  nota não é salva** — as notas e a foto continuam na tela para tentar de
+  novo. As notas digitadas também sobrevivem se o navegador recarregar ao
+  abrir a câmera. Depois de enviado, o nome fica cinza e sem clique, com o
+  clã abaixo do nome e o total à direita. A lista não atualiza sozinha —
+  um link de "atualizar página" cobre novos inscritos chegando ao longo
+  do dia.
+- **Swordplay, Rachar Lenha e as culturais** (`/competicoes/<atividade>`):
+  lista alfabética com um campo de posição por pessoa e **um único botão
+  Enviar** no rodapé — manda a lista inteira de uma vez, mas só grava
+  quem tem posição preenchida (não sobrescreve com vazio quem já tinha).
+  **Não deixa duas pessoas ficarem com a mesma posição** — se tentar,
+  essa pessoa específica fica de fora (com aviso), enquanto o resto do
+  envio é salvo normalmente. O acompanhamento de quem enfrenta quem
+  (Swordplay) ou de cada tentativa (Rachar Lenha) é feito no papel, e nas
+  culturais quem decide continua sendo o público (voto popular em
+  Vestimenta, Bardos e Feitiços; quem bebe mais rápido no Beberrão) — a
+  regra de cada cultural aparece no topo da tela (`regra_resultado` em
+  `config.py`). O app só registra o resultado final, o que facilita a
+  premiação e os registros. Todas usam a mesma tela
+  (`competicao_ranking.html`).
+- **Resultados** (`/resultados`): só o Top 3 de cada atividade — por total
+  no Arco/Machado, por posição nas demais (incluindo as culturais, desde
+  a v2). No Arco e no Machado, cada colocado tem o botão **"Ver foto do
+  alvo"**, para conferir quando precisar. O telefone do competidor
+  aparece junto ao nome — os apresentadores usam pra chamar/contatar quem
+  ganhou. Isso é diferente de Competições, onde o telefone fica escondido
+  de propósito (só aparece em homônimos).
 
 ## 11. Próximos passos possíveis (não implementados ainda)
 
@@ -411,3 +444,36 @@ mesmo; se acontecer, dá para perceber olhando a planilha depois).
   descomentar o bloco em `config.py`.
 - Tratamento de erros mais robusto (planejado para depois do deploy no
   domínio definitivo).
+
+## Histórico de versões
+
+### Versão 2
+
+Revisão feita depois do uso real da versão 1 no evento. As mudanças vieram
+do que a equipe viveu no dia:
+
+- **Culturais passam a ser lançadas no app**: entram na tela de
+  Competições (agora dividida em Torneios e Atividades Culturais),
+  recebem posição como Swordplay e Rachar Lenha, e em Resultados mostram
+  o Top 3. O público continua decidindo; o app registra quem ganhou.
+- **Foto final do alvo obrigatória** no Arco e Flecha e no Arremesso de
+  Machado, usada pelo organizador para desempate, com botão "Ver foto do
+  alvo" em Resultados.
+- **Mais velocidade com várias pessoas enviando ao mesmo tempo**: foto
+  comprimida no próprio celular, cabeçalho de cada aba conferido uma vez
+  só (em vez de a cada envio) e gunicorn com threads.
+- **Proteção contra a "tela branca"**: o formulário da Aquisição e as
+  notas do Arco/Machado são restaurados se o navegador recarregar ao
+  voltar da câmera.
+- **Privacidade**: comprovantes de PIX deixam de ficar abertos para
+  qualquer pessoa com o link; as fotos dos alvos ganham uma pasta própria,
+  essa sim compartilhada.
+- **Ajustes feitos durante o evento**: preço de Beberrão e Rachar Lenha
+  passou para R$ 10,00, e o `id_compra` passou a ser gravado sempre como
+  texto na planilha.
+
+### Versão 1
+
+Primeira versão, usada no evento: Aquisição com login Google, Competições
+dos torneios físicos e Resultados com Top 3 dos torneios e lista dos
+inscritos nas culturais.

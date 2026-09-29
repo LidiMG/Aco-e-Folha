@@ -34,6 +34,10 @@
     Posições salvas!
   </div>
 
+  {% if cfg.regra_resultado %}
+  <div class="banner banner--info">{{ cfg.regra_resultado }} — aqui você só registra a posição final de cada um.</div>
+  {% endif %}
+
   <p class="section-hint">
     Preencha só quem já tem resultado (quem não tem posição fica de fora). Pode
     reenviar quantas vezes precisar durante o dia —

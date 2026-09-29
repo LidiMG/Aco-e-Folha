@@ -42,8 +42,10 @@ from config import (
     COMPETITOR_SHEET_HEADERS,
     CULTURAL_SHEET_HEADERS,
     RANKING_HEADERS,
+    CULTURAL_RANKING_HEADERS,
     TORNEIO_FISICOS,
     TORNEIO_CULTURAIS,
+    TODOS_TORNEIOS,
     score_headers,
     sheet_headers_for,
 )
@@ -104,11 +106,14 @@ def login_required(view_func):
 # Todas as credenciais vêm de variáveis de ambiente — nunca ficam no código.
 #   GOOGLE_SERVICE_ACCOUNT_FILE  -> caminho para o .json da service account
 #   GOOGLE_SHEET_ID              -> ID da planilha (está na URL do Sheets)
-#   GOOGLE_DRIVE_FOLDER_ID       -> ID da pasta do Drive onde as fotos vão
+#   GOOGLE_DRIVE_FOLDER_ID       -> pasta PRIVADA dos comprovantes de PIX
+#   GOOGLE_DRIVE_ALVOS_FOLDER_ID -> pasta das fotos dos alvos (Arco/Machado),
+#                                   compartilhada como leitor para quem tem o link
 
 SERVICE_ACCOUNT_FILE = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
 SHEET_ID = os.environ.get("GOOGLE_SHEET_ID")
 DRIVE_FOLDER_ID = os.environ.get("GOOGLE_DRIVE_FOLDER_ID")
+DRIVE_ALVOS_FOLDER_ID = os.environ.get("GOOGLE_DRIVE_ALVOS_FOLDER_ID")
 
 # Upload de fotos: NÃO usa a service account (contas de serviço não têm cota
 # de armazenamento própria no Drive — só em Shared Drives, que exigem Google
@@ -217,6 +222,9 @@ def get_spreadsheet():
     return _spreadsheet
 
 
+_cabecalhos_conferidos = set()
+
+
 def get_worksheet(sheet_name=None, headers=None):
     """Abre uma aba da planilha mestra pelo nome (padrão: a aba da Aquisição)
     e garante que o cabeçalho dela existe."""
@@ -233,9 +241,15 @@ def get_worksheet(sheet_name=None, headers=None):
             f"Erro original: {exc}"
         ) from exc
 
-    first_row = ws.row_values(1)
-    if first_row != headers:
-        ws.update("A1", [headers])
+    # O cabeçalho é conferido só na primeira vez que cada aba é aberta por
+    # este processo — antes era a cada compra/nota, o que gerava uma leitura
+    # extra no Google por aba, a cada envio (lentidão com várias pessoas).
+    chave = (sheet_name, tuple(headers))
+    if chave not in _cabecalhos_conferidos:
+        first_row = ws.row_values(1)
+        if first_row != headers:
+            ws.update("A1", [headers])
+        _cabecalhos_conferidos.add(chave)
     return ws
 
 
@@ -295,7 +309,13 @@ def compress_photo(file_bytes):
     """Redimensiona e comprime a foto para JPEG, mirando ~0,7MB.
     Se não conseguir processar a imagem (formato inesperado, arquivo
     corrompido etc.), devolve os bytes originais sem modificar — o envio
-    não trava por causa da compressão."""
+    não trava por causa da compressão.
+
+    v2: o próprio celular já comprime a foto antes de enviar. Se chegar um
+    JPEG que já está dentro do tamanho-alvo, não mexe (poupa o processador
+    fraco do plano gratuito do Render)."""
+    if file_bytes[:3] == b"\xff\xd8\xff" and len(file_bytes) <= TARGET_PHOTO_BYTES:
+        return file_bytes, "jpg"
     try:
         img = Image.open(io.BytesIO(file_bytes))
         img = img.convert("RGB")  # remove transparência/CMYK, garante JPEG válido
@@ -317,33 +337,39 @@ def compress_photo(file_bytes):
     return data, "jpg"
 
 
-def upload_photo_to_drive(file_storage, purchase_id):
-    """Sobe a foto para o Drive (já comprimida) e devolve um link visualizável."""
+def upload_photo_to_drive(file_storage, nome_base, folder_id=None, publica=False):
+    """Sobe a foto para o Drive (já comprimida) e devolve o link dela.
+
+    - Comprovantes de PIX: publica=False. Ficam privados na pasta de
+      GOOGLE_DRIVE_FOLDER_ID — só quem tem acesso à pasta consegue abrir
+      (têm dados pessoais e bancários).
+    - Fotos dos alvos: publica=True, na pasta de GOOGLE_DRIVE_ALVOS_FOLDER_ID,
+      abertas para quem tem o link (a tela de Resultados não exige login)."""
     from googleapiclient.http import MediaIoBaseUpload
 
     service = get_drive_service()
-    original_ext = file_storage.filename.rsplit(".", 1)[-1].lower()
+    original_ext = file_storage.filename.rsplit(".", 1)[-1].lower() if "." in file_storage.filename else "jpg"
 
     file_bytes = file_storage.read()
     compressed_bytes, new_ext = compress_photo(file_bytes)
 
     ext = new_ext or original_ext
     mimetype = "image/jpeg" if new_ext else file_storage.mimetype
-    filename = f"{purchase_id}.{ext}"
+    filename = f"{nome_base}.{ext}"
 
     media = MediaIoBaseUpload(io.BytesIO(compressed_bytes), mimetype=mimetype, resumable=False)
 
     file_metadata = {"name": filename}
-    if DRIVE_FOLDER_ID:
-        file_metadata["parents"] = [DRIVE_FOLDER_ID]
+    if folder_id:
+        file_metadata["parents"] = [folder_id]
 
     created = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
     file_id = created["id"]
 
-    # Torna o arquivo visualizável por quem tem o link (ajuste conforme a política da equipe)
-    service.permissions().create(
-        fileId=file_id, body={"type": "anyone", "role": "reader"}
-    ).execute()
+    if publica:
+        service.permissions().create(
+            fileId=file_id, body={"type": "anyone", "role": "reader"}
+        ).execute()
 
     return f"https://drive.google.com/file/d/{file_id}/view"
 
@@ -506,16 +532,37 @@ def home():
 
 @app.route("/competicoes")
 def competicoes():
-    itens = [(key, ACTIVITIES[key]) for key in TORNEIO_FISICOS]
-    return render_template("competicoes_hub.html", itens=itens)
+    fisicos = [(key, ACTIVITIES[key]) for key in TORNEIO_FISICOS]
+    culturais = [(key, ACTIVITIES[key]) for key in TORNEIO_CULTURAIS]
+    return render_template("competicoes_hub.html", fisicos=fisicos, culturais=culturais)
+
+
+def _atividade_de_ranking(key):
+    """Devolve a config da atividade se ela for do tipo "posição no ranking"
+    (Swordplay, Rachar Lenha e, desde a v2, todas as culturais), senão None."""
+    cfg = ACTIVITIES.get(key)
+    if not cfg or key not in TODOS_TORNEIOS or cfg.get("num_tiros"):
+        return None
+    return cfg
+
+
+def _ordenar_por_posicao(rows):
+    def posicao_key(r):
+        try:
+            return int(r["posicao"])
+        except (TypeError, ValueError):
+            return 999999
+    rows = [r for r in rows if r.get("posicao")]
+    rows.sort(key=posicao_key)
+    return rows
 
 
 @app.route("/competicoes/<key>/posicao", methods=["POST"])
 def competicao_enviar_posicao(key):
     from gspread.utils import rowcol_to_a1
 
-    cfg = ACTIVITIES.get(key)
-    if not cfg or key not in TORNEIO_FISICOS or cfg.get("num_tiros"):
+    cfg = _atividade_de_ranking(key)
+    if not cfg:
         return jsonify({"ok": False, "errors": ["Atividade inválida."]}), 400
 
     payload = request.get_json(silent=True) or {}
@@ -523,14 +570,16 @@ def competicao_enviar_posicao(key):
     if not isinstance(posicoes, list):
         return jsonify({"ok": False, "errors": ["Dados inválidos."]}), 400
 
+    headers = sheet_headers_for(key, cfg)
+    col_posicao = headers.index("posicao") + 1
     atualizados = 0
     erros = []
     try:
-        ws = get_worksheet(cfg["sheet_name"], RANKING_HEADERS)
+        ws = get_worksheet(cfg["sheet_name"], headers)
 
         # Mapa de quem já ocupa cada posição hoje (pra barrar duplicata mesmo
         # contra o que foi salvo em envios anteriores, não só nesta leva).
-        linhas_atuais = read_modality_rows(cfg["sheet_name"], RANKING_HEADERS)
+        linhas_atuais = read_modality_rows(cfg["sheet_name"], headers)
         nome_por_linha = {r["_row"]: r.get("nome", "essa pessoa") for r in linhas_atuais}
         ocupadas = {}
         for r in linhas_atuais:
@@ -562,7 +611,7 @@ def competicao_enviar_posicao(key):
                 )
                 continue
 
-            cell = rowcol_to_a1(row_number, len(RANKING_HEADERS))  # coluna "posicao"
+            cell = rowcol_to_a1(row_number, col_posicao)
             ws.update(cell, [[posicao_num]], value_input_option="USER_ENTERED")
             ocupadas[posicao_num] = row_number  # já conta como ocupada pro resto deste envio
             atualizados += 1
@@ -578,7 +627,7 @@ def competicao_enviar_posicao(key):
 @app.route("/competicoes/<key>")
 def competicao_pontuar(key):
     cfg = ACTIVITIES.get(key)
-    if not cfg or key not in TORNEIO_FISICOS:
+    if not cfg or key not in TODOS_TORNEIOS:
         return redirect(url_for("competicoes"))
 
     headers = sheet_headers_for(key, cfg)
@@ -599,8 +648,9 @@ def competicao_pontuar(key):
             erro=erro,
         )
 
-    # Sem num_tiros: atividade do tipo "ranking manual" (Swordplay, Rachar
-    # Lenha, e outras que vierem no mesmo molde) — mesma tela pra todas.
+    # Sem num_tiros: atividade do tipo "posição no ranking" (Swordplay, Rachar
+    # Lenha e as culturais) — mesma tela pra todas. As culturais mostram a
+    # regra delas no topo (ex.: voto popular — o público decide, o app registra).
     return render_template("competicao_ranking.html", cfg=cfg, key=key, rows=rows, erro=erro)
 
 
@@ -612,14 +662,20 @@ def competicao_enviar_nota(key):
     if not cfg or key not in TORNEIO_FISICOS or not cfg.get("num_tiros"):
         return jsonify({"ok": False, "errors": ["Atividade inválida."]}), 400
 
-    payload = request.get_json(silent=True) or {}
-    row_number = payload.get("row")
-    tiros = payload.get("tiros")
+    # v2: vem como formulário (multipart), porque agora inclui a foto do alvo.
+    try:
+        row_number = int(request.form.get("row", ""))
+        tiros = json.loads(request.form.get("tiros", "[]"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "errors": ["Dados inválidos — atualize a página (F5) e tente de novo."]}), 400
+    foto = request.files.get("foto_alvo")
 
-    if not isinstance(row_number, int) or row_number < 2:
+    if row_number < 2:
         return jsonify({"ok": False, "errors": ["Linha inválida — atualize a página (F5) e tente de novo."]}), 400
     if not isinstance(tiros, list) or len(tiros) != cfg["num_tiros"]:
         return jsonify({"ok": False, "errors": [f"Informe as {cfg['num_tiros']} notas."]}), 400
+    if not foto or not foto.filename:
+        return jsonify({"ok": False, "errors": ["Tire a foto do alvo antes de enviar."]}), 400
 
     valores = []
     for v in tiros:
@@ -633,28 +689,42 @@ def competicao_enviar_nota(key):
             return jsonify({"ok": False, "errors": ["Cada nota precisa ser um número inteiro (sem casas decimais)."]}), 400
         valores.append(int(n))
 
-    total = round(sum(valores), 2)
+    total = sum(valores)
     headers = score_headers(cfg["num_tiros"])
+    col_total = headers.index("total") + 1
 
     try:
         ws = get_worksheet(cfg["sheet_name"], headers)
 
         # Evita que duas pessoas pontuando ao mesmo tempo sobrescrevam uma
-        # nota já enviada por outra — confere se essa linha já tem total
-        # gravado antes de escrever por cima.
+        # nota já enviada por outra — confere ANTES de subir a foto.
         linha_atual = ws.row_values(row_number)
-        total_col_index = len(headers)  # "total" é sempre a última coluna
-        if len(linha_atual) >= total_col_index and linha_atual[total_col_index - 1]:
+        if len(linha_atual) >= col_total and linha_atual[col_total - 1]:
             return jsonify({
                 "ok": False,
                 "errors": ["Essa pessoa já foi pontuada (por outra pessoa, ao que parece). Atualize a página (F5) pra ver a nota."],
             }), 409
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"ok": False, "errors": [f"Erro ao acessar a planilha: {exc}"]}), 502
 
-        start_col = 4  # coluna D: logo após nome/cla/telefone
-        end_col = start_col + len(valores)  # coluna do total
-        start_a1 = rowcol_to_a1(row_number, start_col)
-        end_a1 = rowcol_to_a1(row_number, end_col)
-        ws.update(f"{start_a1}:{end_a1}", [valores + [total]], value_input_option="USER_ENTERED")
+    # A foto é a prova do desempate: se não chegar ao Drive, a nota NÃO é salva.
+    try:
+        foto_link = upload_photo_to_drive(
+            foto,
+            f"{cfg['sheet_name']}_linha{row_number}_{uuid.uuid4().hex[:6]}",
+            folder_id=DRIVE_ALVOS_FOLDER_ID,
+            publica=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({
+            "ok": False,
+            "errors": [f"A foto do alvo não foi enviada, então a nota não foi salva. Tente enviar de novo. ({exc})"],
+        }), 502
+
+    try:
+        start_a1 = rowcol_to_a1(row_number, 4)  # coluna D: logo após nome/cla/telefone
+        end_a1 = rowcol_to_a1(row_number, col_total + 1)  # até a coluna foto_alvo
+        ws.update(f"{start_a1}:{end_a1}", [valores + [total, foto_link]], value_input_option="USER_ENTERED")
     except Exception as exc:  # noqa: BLE001
         return jsonify({"ok": False, "errors": [f"Erro ao gravar a nota: {exc}"]}), 502
 
@@ -681,50 +751,29 @@ def termos():
 @app.route("/resultados/<key>")
 def resultado_atividade(key):
     cfg = ACTIVITIES.get(key)
-    if not cfg:
+    if not cfg or key not in TODOS_TORNEIOS:
         return redirect(url_for("resultados"))
 
     erro = None
-
-    if key in TORNEIO_CULTURAIS:
-        try:
-            rows = ordenar_por_nome(read_modality_rows(cfg["sheet_name"], CULTURAL_SHEET_HEADERS))
-        except Exception as exc:  # noqa: BLE001
-            rows, erro = [], str(exc)
-        return render_template("resultado_cultural.html", cfg=cfg, rows=rows, erro=erro)
-
-    if key in TORNEIO_FISICOS and not cfg.get("num_tiros"):
-        try:
-            rows = read_modality_rows(cfg["sheet_name"], RANKING_HEADERS)
-        except Exception as exc:  # noqa: BLE001
-            rows, erro = [], str(exc)
-        else:
-            def posicao_key(r):
-                try:
-                    return int(r["posicao"])
-                except (TypeError, ValueError):
-                    return 999999
-            rows = [r for r in rows if r.get("posicao")]
-            rows.sort(key=posicao_key)
-        return render_template("resultado_torneio.html", cfg=cfg, top3=rows[:3], erro=erro)
+    headers = sheet_headers_for(key, cfg)
+    try:
+        rows = read_modality_rows(cfg["sheet_name"], headers)
+    except Exception as exc:  # noqa: BLE001
+        return render_template("resultado_torneio.html", cfg=cfg, top3=[], erro=str(exc))
 
     if cfg.get("num_tiros"):
-        headers = score_headers(cfg["num_tiros"])
-        try:
-            rows = read_modality_rows(cfg["sheet_name"], headers)
-        except Exception as exc:  # noqa: BLE001
-            rows, erro = [], str(exc)
-        else:
-            def total_key(r):
-                try:
-                    return float(r["total"])
-                except (TypeError, ValueError):
-                    return -1
-            rows = [r for r in rows if r.get("total")]
-            rows.sort(key=total_key, reverse=True)
-        return render_template("resultado_torneio.html", cfg=cfg, top3=rows[:3], erro=erro)
+        def total_key(r):
+            try:
+                return float(r["total"])
+            except (TypeError, ValueError):
+                return -1
+        rows = [r for r in rows if r.get("total")]
+        rows.sort(key=total_key, reverse=True)
+    else:
+        # Swordplay, Rachar Lenha e as culturais: Top 3 pela posição lançada.
+        rows = _ordenar_por_posicao(rows)
 
-    return redirect(url_for("resultados"))
+    return render_template("resultado_torneio.html", cfg=cfg, top3=rows[:3], erro=erro)
 
 
 @app.route("/aquisicao")
@@ -770,7 +819,7 @@ def submit():
     avisos = []
     if photo_file and photo_file.filename:
         try:
-            photo_link = upload_photo_to_drive(photo_file, purchase_id)
+            photo_link = upload_photo_to_drive(photo_file, purchase_id, folder_id=DRIVE_FOLDER_ID, publica=False)
         except Exception as exc:  # noqa: BLE001 — captura qualquer falha do Google
             photo_link = "Imagem não recebida"
             avisos.append(

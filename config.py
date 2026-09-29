@@ -59,7 +59,7 @@ ACTIVITIES = {
         "preco_unitario": 20.00,
         "sheet_name": "vestimenta",
         "icon": "👗",
-        "regra_resultado": "O resultado é decidido por voto popular",
+        "regra_resultado": "O resultado é decidido por voto popular",  # mostrado na tela de Competições
     },
     "bardos": {
         "label": "Bardos",
@@ -119,13 +119,18 @@ NOME_ABA_AQUISICAO = "aquisicao"
 COMPETITOR_SHEET_HEADERS = ["nome", "cla", "telefone"]  # físicas, antes de pontuar/posicionar
 CULTURAL_SHEET_HEADERS = ["nome", "telefone"]           # culturais — sem clã
 RANKING_HEADERS = ["nome", "cla", "telefone", "posicao"]  # físicas sem tiro — Swordplay, Rachar Lenha etc.
+CULTURAL_RANKING_HEADERS = ["nome", "telefone", "posicao"]  # culturais — sem clã, com posição (v2)
+
+# Todas as atividades que aparecem em Competições/Resultados, físicas e culturais.
+TODOS_TORNEIOS = TORNEIO_FISICOS + TORNEIO_CULTURAIS
 
 
 def score_headers(num_tiros):
     """Cabeçalho da aba de uma atividade pontuada por tiros (Arco/Machado):
-    nome/clã/telefone + um "tiroN" por tentativa + total."""
+    nome/clã/telefone + um "tiroN" por tentativa + total + link da foto do
+    alvo (v2: a foto é obrigatória e serve de prova para desempate)."""
     tiros = [f"tiro{i}" for i in range(1, num_tiros + 1)]
-    return ["nome", "cla", "telefone"] + tiros + ["total"]
+    return ["nome", "cla", "telefone"] + tiros + ["total", "foto_alvo"]
 
 
 def sheet_headers_for(key, cfg):
@@ -134,12 +139,15 @@ def sheet_headers_for(key, cfg):
     usar sempre esta função garante que todo mundo concorda no mesmo
     cabeçalho, sem risco de uma tela reescrever com um formato diferente
     do que outra espera. Qualquer física sem num_tiros (Swordplay, Rachar
-    Lenha, e outras que vierem no mesmo molde) usa RANKING_HEADERS — não é
-    mais um caso especial só do Swordplay."""
+    Lenha, e outras que vierem no mesmo molde) usa RANKING_HEADERS; as
+    culturais usam CULTURAL_RANKING_HEADERS (sem clã)."""
     if key in TORNEIO_FISICOS:
         if cfg.get("num_tiros"):
             return score_headers(cfg["num_tiros"])
         return RANKING_HEADERS
+    if key in TORNEIO_CULTURAIS:
+        # v2: as culturais também recebem posição (o público decide, o app registra)
+        return CULTURAL_RANKING_HEADERS
     if cfg.get("collects_cla", True):
         return COMPETITOR_SHEET_HEADERS
     return CULTURAL_SHEET_HEADERS

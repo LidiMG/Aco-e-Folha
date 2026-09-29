@@ -364,21 +364,24 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Enviando...";
+
     const formData = new FormData();
     if (photoInput.files[0]) {
-      formData.append("photo", photoInput.files[0]);
+      // v2: a foto já sai comprimida do celular (~0,7MB em vez de 5-8MB)
+      const foto = await window.comprimirFoto(photoInput.files[0]);
+      formData.append("photo", foto);
     }
     formData.append("forma_pagamento", pagamentoChecked.value);
     formData.append("activities_json", JSON.stringify(activities));
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Enviando...";
 
     try {
       const response = await fetch("/submit", { method: "POST", body: formData });
       const data = await response.json();
 
       if (data.ok) {
+        limparRascunho();
         successId.textContent = data.purchase_id;
         successBanner.hidden = false;
         form.hidden = true;
@@ -395,6 +398,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   newSubmissionBtn.addEventListener("click", () => {
+    limparRascunho();
     form.reset();
     form.hidden = false;
     stepPhoto.hidden = false;
@@ -409,4 +413,120 @@ document.addEventListener("DOMContentLoaded", () => {
     hideBanners();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
+
+  // --- Rascunho da compra (v2) ----------------------------------------------
+  // Em celulares com pouca memória, o Android pode fechar o navegador enquanto
+  // a câmera está aberta — ao voltar, a página recarrega vazia (era a "tela
+  // branca" de um dos atendentes no evento). Agora tudo que foi preenchido
+  // fica guardado no próprio aparelho e é restaurado; só a foto precisa ser
+  // tirada de novo (navegadores não permitem guardar o arquivo da foto).
+  const CHAVE_RASCUNHO = "aquisicao_rascunho";
+  const VALIDADE_RASCUNHO_MS = 30 * 60 * 1000; // 30 minutos
+
+  function containerKey(container) {
+    return `${container.dataset.activity}|${container.dataset.modo || "fixo"}`;
+  }
+
+  function containersDeAtividade() {
+    return document.querySelectorAll('.activity-subcard, .activity-card[data-has-mode="false"]');
+  }
+
+  function salvarRascunho() {
+    try {
+      const pagamento = pagamentoGroup.querySelector("input:checked");
+      const itens = [];
+      containersDeAtividade().forEach((container) => {
+        const toggle = container.querySelector(".activity-toggle");
+        if (!toggle || !toggle.checked) return;
+        const competidores = Array.from(container.querySelectorAll(".competitor-entry")).map((entry) => {
+          const cla = entry.querySelector(".input-competidor-cla");
+          return {
+            nome: entry.querySelector(".input-competidor-nome").value,
+            telefone: entry.querySelector(".input-competidor-telefone").value,
+            cla: cla ? cla.value : "",
+          };
+        });
+        itens.push({
+          chave: containerKey(container),
+          quantidade: parseInt(container.querySelector(".input-quantidade").value, 10) || 0,
+          competidores,
+        });
+      });
+      if (!pagamento && itens.length === 0) {
+        localStorage.removeItem(CHAVE_RASCUNHO);
+        return;
+      }
+      localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify({
+        salvoEm: Date.now(),
+        pagamento: pagamento ? pagamento.value : null,
+        itens,
+      }));
+    } catch (err) {
+      // sem espaço ou armazenamento bloqueado: segue sem rascunho
+    }
+  }
+
+  function limparRascunho() {
+    try { localStorage.removeItem(CHAVE_RASCUNHO); } catch (err) { /* ignora */ }
+  }
+
+  function restaurarRascunho() {
+    let rascunho;
+    try {
+      rascunho = JSON.parse(localStorage.getItem(CHAVE_RASCUNHO) || "null");
+    } catch (err) {
+      return;
+    }
+    if (!rascunho) return;
+    if (Date.now() - rascunho.salvoEm > VALIDADE_RASCUNHO_MS) {
+      limparRascunho();
+      return;
+    }
+
+    const porChave = {};
+    containersDeAtividade().forEach((container) => { porChave[containerKey(container)] = container; });
+
+    (rascunho.itens || []).forEach((item) => {
+      const container = porChave[item.chave];
+      if (!container) return;
+      const toggle = container.querySelector(".activity-toggle");
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event("change", { bubbles: true }));
+      const stepper = container.querySelector(".qty-stepper");
+      if (stepper) setStepperValue(stepper, item.quantidade); // cria os campos dos competidores
+      const entries = container.querySelectorAll(".competitor-entry");
+      (item.competidores || []).forEach((comp, i) => {
+        const entry = entries[i];
+        if (!entry) return;
+        entry.querySelector(".input-competidor-nome").value = comp.nome || "";
+        entry.querySelector(".input-competidor-telefone").value = comp.telefone || "";
+        const cla = entry.querySelector(".input-competidor-cla");
+        if (cla) cla.value = comp.cla || "";
+      });
+    });
+
+    if (rascunho.pagamento) {
+      const radio = pagamentoGroup.querySelector(`input[value="${rascunho.pagamento}"]`);
+      if (radio) {
+        radio.checked = true;
+        radio.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+
+    updateTotal();
+    salvarRascunho(); // regrava completo (durante a restauração ele foi salvo pela metade)
+
+    const aviso = document.createElement("div");
+    aviso.className = "banner banner--info";
+    aviso.textContent = "Recuperamos o que estava preenchido. Se a compra for PIX, tire a foto do comprovante de novo.";
+    form.parentNode.insertBefore(aviso, form);
+  }
+
+  // Salva a cada mudança e, principalmente, logo antes de abrir a câmera.
+  form.addEventListener("input", salvarRascunho);
+  form.addEventListener("change", salvarRascunho);
+  form.addEventListener("click", salvarRascunho);
+  photoInput.addEventListener("click", salvarRascunho);
+
+  restaurarRascunho();
 });

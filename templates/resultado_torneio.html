@@ -40,7 +40,10 @@
       <span class="podium-item__place">{{ loop.index }}º</span>
       <span class="podium-item__nameblock">
         <span class="podium-item__name">{{ row.nome }}</span>
-        <span class="podium-item__meta">{{ row.cla }}{% if row.telefone %} · {{ row.telefone }}{% endif %}</span>
+        <span class="podium-item__meta">{{ row.cla }}{% if row.cla and row.telefone %} · {% endif %}{{ row.telefone }}</span>
+        {% if row.foto_alvo and row.foto_alvo.startswith('http') %}
+        <a class="podium-item__foto" href="{{ row.foto_alvo }}" target="_blank" rel="noopener">📷 Ver foto do alvo</a>
+        {% endif %}
       </span>
       <span class="podium-item__score">
         {% if row.total is defined %}{{ row.total }} pts{% else %}Posição {{ row.posicao }}{% endif %}
