@@ -6,6 +6,7 @@ import json
 import re
 import socket
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from datetime import datetime
 
@@ -126,7 +127,8 @@ GOOGLE_DRIVE_TOKEN_FILE = os.environ.get("GOOGLE_DRIVE_TOKEN_FILE", "drive_token
 DRIVE_UPLOAD_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 _gspread_client = None
-_drive_service = None
+_drive_local = threading.local()
+_em_paralelo = ThreadPoolExecutor(max_workers=8)
 
 
 def get_gspread_client():
@@ -166,8 +168,11 @@ def get_drive_service():
     """Cria (uma vez) e reaproveita o cliente do Google Drive, autenticado
     com a SUA conta pessoal (não a service account) — os uploads passam a
     usar o seu espaço normal do Drive."""
-    global _drive_service
-    if _drive_service is None:
+    # v2: com o gunicorn usando threads, dois envios podem usar o Drive ao
+    # mesmo tempo no mesmo processo — e o cliente do Drive (httplib2) não
+    # pode ser compartilhado entre threads. Então cada thread ganha o seu.
+    service = getattr(_drive_local, "service", None)
+    if service is None:
         from googleapiclient.discovery import build
         from google.oauth2.credentials import Credentials
         from google.auth.transport.requests import Request as GoogleAuthRequest
@@ -194,8 +199,9 @@ def get_drive_service():
             except OSError:
                 pass
 
-        _drive_service = build("drive", "v3", credentials=creds)
-    return _drive_service
+        service = build("drive", "v3", credentials=creds, cache_discovery=False)
+        _drive_local.service = service
+    return service
 
 
 _spreadsheet = None
@@ -729,11 +735,23 @@ def competicao_enviar_nota(key):
     headers = score_headers(cfg["num_tiros"])
     col_total = headers.index("total") + 1
 
+    # v2: a foto começa a subir para o Drive ao mesmo tempo em que a planilha
+    # é conferida, em vez de uma coisa depois da outra.
+    envio_foto = _em_paralelo.submit(
+        upload_photo_to_drive,
+        foto,
+        f"{cfg['sheet_name']}_linha{row_number}_{uuid.uuid4().hex[:6]}",
+        folder_id=DRIVE_ALVOS_FOLDER_ID,
+        # Não precisa de acesso público: a tela de Resultados busca a foto
+        # pelo próprio app (rota foto_alvo), sem login Google.
+        publica=False,
+    )
+
     try:
         ws = get_worksheet(cfg["sheet_name"], headers)
 
         # Evita que duas pessoas pontuando ao mesmo tempo sobrescrevam uma
-        # nota já enviada por outra — confere ANTES de subir a foto.
+        # nota já enviada por outra.
         linha_atual = ws.row_values(row_number)
         if len(linha_atual) >= col_total and linha_atual[col_total - 1]:
             return jsonify({
@@ -745,14 +763,7 @@ def competicao_enviar_nota(key):
 
     # A foto é a prova do desempate: se não chegar ao Drive, a nota NÃO é salva.
     try:
-        foto_link = upload_photo_to_drive(
-            foto,
-            f"{cfg['sheet_name']}_linha{row_number}_{uuid.uuid4().hex[:6]}",
-            folder_id=DRIVE_ALVOS_FOLDER_ID,
-            # Não precisa de acesso público: a tela de Resultados busca a foto
-            # pelo próprio app (rota foto_alvo), sem login Google.
-            publica=False,
-        )
+        foto_link = envio_foto.result(timeout=40)
     except Exception as exc:  # noqa: BLE001
         return jsonify({
             "ok": False,
@@ -906,9 +917,13 @@ def submit():
     if not re.fullmatch(r"[0-9a-f]{8}", purchase_id):
         purchase_id = uuid.uuid4().hex[:8]  # celular com app antigo: gera aqui
 
-    # Com foto, confere antes de subir (evita mandar a mesma foto duas vezes).
-    # Sem foto, basta a conferência logo antes de gravar, mais abaixo.
+    # Com foto, ela começa a subir para o Drive ao mesmo tempo em que a
+    # planilha confere se essa compra já existe (v2: em paralelo, não em fila).
+    envio_foto = None
     if photo_file and photo_file.filename:
+        envio_foto = _em_paralelo.submit(
+            upload_photo_to_drive, photo_file, purchase_id, folder_id=DRIVE_FOLDER_ID, publica=False
+        )
         try:
             if compra_ja_registrada(purchase_id):
                 return jsonify({"ok": True, "purchase_id": purchase_id, "avisos": [], "ja_registrada": True})
@@ -923,9 +938,9 @@ def submit():
 
     photo_link = ""
     avisos = []
-    if photo_file and photo_file.filename:
+    if envio_foto is not None:
         try:
-            photo_link = upload_photo_to_drive(photo_file, purchase_id, folder_id=DRIVE_FOLDER_ID, publica=False)
+            photo_link = envio_foto.result(timeout=40)
         except Exception as exc:  # noqa: BLE001 — captura qualquer falha do Google
             photo_link = "Imagem não recebida"
             avisos.append(

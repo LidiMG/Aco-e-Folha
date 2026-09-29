@@ -219,6 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // só cuida da própria pré-visualização.
   function resetPhotoStep() {
     photoInput.value = "";
+    photoInput._fotoPronta = null;
     photoPreview.src = "";
     photoPreview.hidden = true;
     cameraTrigger.hidden = false;
@@ -226,6 +227,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   photoInput.addEventListener("change", () => {
+    window.prepararFoto(photoInput);
     const file = photoInput.files[0];
     if (!file) {
       photoPreview.hidden = true;
@@ -377,14 +379,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     submitBtn.disabled = true;
-    submitBtn.textContent = "Enviando...";
 
     const formData = new FormData();
     if (photoInput.files[0]) {
-      // v2: a foto já sai comprimida do celular (~0,7MB em vez de 5-8MB)
-      const foto = await window.comprimirFoto(photoInput.files[0]);
+      // v2: a foto já sai comprimida do celular (~0,4MB em vez de 5-8MB),
+      // e a compressão começou assim que ela foi tirada.
+      submitBtn.textContent = "Preparando foto...";
+      const foto = await window.fotoPronta(photoInput);
       formData.append("photo", foto);
     }
+    submitBtn.textContent = "Enviando...";
     formData.append("forma_pagamento", pagamentoChecked.value);
     formData.append("activities_json", JSON.stringify(activities));
     formData.append("purchase_id", compraId);

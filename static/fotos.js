@@ -10,8 +10,11 @@
 // o servidor ainda sabe comprimir, então o envio nunca trava por causa disso.
 
 (function () {
-  const LADO_MAXIMO = 1600;        // pixels no lado maior (igual ao servidor)
-  const TAMANHO_ALVO = 700 * 1000; // ~0,7MB
+  // 1280px ainda deixa o comprovante legível e os furos do alvo nítidos, e a
+  // foto fica com uns 250-400KB: metade do tempo de envio na rede do evento.
+  const LADO_MAXIMO = 1280;
+  const TAMANHO_ALVO = 400 * 1000; // ~0,4MB
+  const QUALIDADE_INICIAL = 0.75;  // já começa num ponto que costuma bastar (1 passada só)
   const QUALIDADE_MINIMA = 0.35;
 
   function carregarImagem(file) {
@@ -47,7 +50,7 @@
       canvas.height = altura;
       canvas.getContext("2d").drawImage(img, 0, 0, largura, altura);
 
-      let qualidade = 0.85;
+      let qualidade = QUALIDADE_INICIAL;
       let blob = await canvasParaBlob(canvas, qualidade);
       while (blob && blob.size > TAMANHO_ALVO && qualidade > QUALIDADE_MINIMA) {
         qualidade -= 0.1;
@@ -60,5 +63,18 @@
     } catch (err) {
       return file; // o servidor comprime no lugar
     }
+  };
+
+  // Começa a comprimir assim que a foto é tirada, enquanto a pessoa ainda
+  // confere o resto da tela — no Enviar, a foto já está pronta.
+  window.prepararFoto = function (input) {
+    const file = input.files && input.files[0];
+    input._fotoPronta = file ? window.comprimirFoto(file) : null;
+  };
+
+  window.fotoPronta = function (input) {
+    const file = input.files && input.files[0];
+    if (!file) return Promise.resolve(null);
+    return input._fotoPronta || window.comprimirFoto(file);
   };
 })();

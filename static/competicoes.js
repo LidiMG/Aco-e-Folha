@@ -109,6 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
     input.addEventListener("click", () => salvarNotasDaLinha(row));
 
     input.addEventListener("change", () => {
+      window.prepararFoto(input); // já começa a comprimir
       const file = input.files[0];
       if (!file) return;
       if (preview.dataset.url) URL.revokeObjectURL(preview.dataset.url);
@@ -147,10 +148,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const key = window.location.pathname.split("/").filter(Boolean).pop();
       btn.disabled = true;
-      btn.textContent = "Enviando...";
+      btn.textContent = "Preparando foto...";
 
       try {
-        const foto = await window.comprimirFoto(fotoInput.files[0]);
+        const foto = await window.fotoPronta(fotoInput);
+        btn.textContent = "Enviando...";
         const formData = new FormData();
         formData.append("row", String(rowNumber));
         formData.append("tiros", JSON.stringify(tiros.map((v) => parseScoreValue(v))));

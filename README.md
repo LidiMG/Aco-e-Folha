@@ -387,8 +387,13 @@ mesmo; se acontecer, dá para perceber olhando a planilha depois).
   atividade/quantidade marcada — serve para conferir com o cliente antes
   de enviar.
 - **Fotos comprimidas no próprio celular (v2)**: `static/fotos.js`
-  redimensiona para no máximo 1600px no lado maior e salva em JPEG,
-  mirando ~0,7MB, antes de enviar. Na v1 a foto saía do celular com 5 a
+  redimensiona para no máximo 1280px no lado maior e salva em JPEG,
+  mirando ~0,4MB (o comprovante continua legível e os furos do alvo,
+  nítidos). A compressão começa assim que a foto é tirada, então no
+  Enviar ela já está pronta; e no servidor a foto sobe para o Drive ao
+  mesmo tempo em que a planilha é conferida. O botão mostra a etapa
+  ("Preparando foto..." e depois "Enviando..."), o que também ajuda a
+  saber onde está a demora, se houver. Na v1 a foto saía do celular com 5 a
   8MB e só o servidor comprimia, o que deixava tudo lento com várias
   pessoas enviando juntas. O servidor ainda comprime como reserva, caso a
   foto chegue grande (`MAX_PHOTO_DIMENSION`, `TARGET_PHOTO_BYTES`,
