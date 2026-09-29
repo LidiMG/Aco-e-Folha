@@ -977,5 +977,24 @@ input[type="file"] {
 .podium-item__foto {
   font-size: 0.8rem;
   color: var(--color-accent);
-  margin-top: 2px;
+  margin-top: 4px;
+}
+
+.podium-item__foto summary {
+  cursor: pointer;
+}
+
+.podium-item__foto img {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  margin-top: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.podium-item__foto-dica {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-ink-soft);
 }

@@ -184,8 +184,11 @@ ALLOWED_EMAILS=
   compartilhe a pasta com o e-mail de cada uma (não com "qualquer pessoa
   com o link").
 - `GOOGLE_DRIVE_ALVOS_FOLDER_ID` — fotos finais dos alvos (Arco e
-  Machado). Compartilhada como **leitor para qualquer pessoa com o link**,
-  porque a tela de Resultados não exige login e precisa abrir essas fotos.
+  Machado). **Pode ficar privada**: a tela de Resultados não abre o link
+  do Drive, e sim a rota `/resultados/foto/<id>`, em que o próprio app
+  busca a foto com a autorização que já tem e entrega a imagem — sem
+  pedir login Google a quem está olhando. Essa rota só entrega arquivos
+  desta pasta, nunca comprovantes de PIX.
 
 O app lê esse arquivo sozinho toda vez que inicia — não precisa de
 `export` nenhum, em nenhum terminal, nunca mais. O `.env` já está
@@ -242,6 +245,13 @@ o link definitivo é do tipo `https://SEU-SERVICO.onrender.com`).
   try/except de cada rota, mostrando um erro decente — em vez de ficar
   pendurada até o gunicorn cortar o processo (que aí sim gera um 500 sem
   mensagem nenhuma pra quem está usando).
+- **Manter o serviço acordado (opcional, recomendado em dia de evento)**:
+  a rota `/saude` responde "ok" sem falar com o Google. Um monitor
+  gratuito (como UptimeRobot ou cron-job.org) chamando
+  `https://SEU-SERVICO.onrender.com/saude` a cada 10 minutos impede o
+  Render de "adormecer" o serviço, e ninguém espera os 30-60 segundos do
+  primeiro acesso. As 750 horas mensais do plano gratuito cobrem um
+  serviço ligado o mês inteiro.
 - **Plano Free**: o serviço "dorme" depois de 15 minutos sem acesso, e
   demora uns 30-60 segundos pra acordar no primeiro acesso seguinte —
   isso é normal, não é erro. Ficar dias sem uso não tem problema nenhum,
@@ -389,6 +399,13 @@ mesmo; se acontecer, dá para perceber olhando a planilha depois).
   enfrentou no evento). Agora o que foi preenchido fica guardado no
   próprio aparelho por até 30 minutos e é restaurado sozinho, com um
   aviso; só a foto precisa ser tirada de novo.
+- **Menos idas ao Google a cada envio (v2)**: cada aba da planilha é
+  localizada uma vez só por processo (antes era a cada envio), a compra
+  sem foto confere o código só uma vez, e a cópia dos competidores para as
+  abas das atividades roda em segundo plano, depois da resposta. Uma
+  compra sem foto com duas atividades caiu de 9 para 2 chamadas até o
+  "Compra registrada!"; uma nota com foto, de 5 para 3 (as fotos dos
+  alvos não precisam mais ser liberadas uma por uma).
 - **Sem compra duplicada em nova tentativa (v2)**: o código da compra
   (`id_compra`) é criado pelo celular antes de enviar e reaproveitado se o
   atendente tentar de novo. No evento da v1, uma compra foi gravada duas
@@ -440,7 +457,9 @@ e **Atividades Culturais**.
 - **Resultados** (`/resultados`): só o Top 3 de cada atividade — por total
   no Arco/Machado, por posição nas demais (incluindo as culturais, desde
   a v2). No Arco e no Machado, cada colocado tem o botão **"Ver foto do
-  alvo"**, para conferir quando precisar. O telefone do competidor
+  alvo"**, que abre a foto ali mesmo, sem login Google (o app busca a
+  imagem no Drive e guarda as mais recentes em memória, para abrir na
+  hora nas vezes seguintes). O telefone do competidor
   aparece junto ao nome — os apresentadores usam pra chamar/contatar quem
   ganhou. Isso é diferente de Competições, onde o telefone fica escondido
   de propósito (só aparece em homônimos).

@@ -41,8 +41,14 @@
       <span class="podium-item__nameblock">
         <span class="podium-item__name">{{ row.nome }}</span>
         <span class="podium-item__meta">{{ row.cla }}{% if row.cla and row.telefone %} · {% endif %}{{ row.telefone }}</span>
-        {% if row.foto_alvo and row.foto_alvo.startswith('http') %}
-        <a class="podium-item__foto" href="{{ row.foto_alvo }}" target="_blank" rel="noopener">📷 Ver foto do alvo</a>
+        {% if row._foto_id %}
+        <details class="podium-item__foto">
+          <summary>📷 Ver foto do alvo</summary>
+          <a href="{{ url_for('foto_alvo', file_id=row._foto_id) }}" target="_blank" rel="noopener">
+            <img src="{{ url_for('foto_alvo', file_id=row._foto_id) }}" loading="lazy" alt="Foto do alvo de {{ row.nome }}">
+          </a>
+          <span class="podium-item__foto-dica">Toque na foto para ampliar.</span>
+        </details>
         {% endif %}
       </span>
       <span class="podium-item__score">

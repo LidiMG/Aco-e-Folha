@@ -5,6 +5,7 @@ import uuid
 import json
 import re
 import socket
+import threading
 from functools import wraps
 from datetime import datetime
 
@@ -224,6 +225,10 @@ def get_spreadsheet():
 
 
 _cabecalhos_conferidos = set()
+# Cada Spreadsheet.worksheet(nome) do gspread faz uma chamada ao Google só
+# para achar a aba. Guardamos a aba já encontrada e reaproveitamos (v2).
+# Se renomear/recriar uma aba com o app no ar, reinicie o serviço no Render.
+_abas_abertas = {}
 
 
 def get_worksheet(sheet_name=None, headers=None):
@@ -234,7 +239,8 @@ def get_worksheet(sheet_name=None, headers=None):
     headers = headers or SHEET_HEADERS
 
     try:
-        ws = sh.worksheet(sheet_name)
+        ws = _abas_abertas.get(sheet_name) or sh.worksheet(sheet_name)
+        _abas_abertas[sheet_name] = ws
     except Exception as exc:
         raise RuntimeError(
             f"Não encontrei a aba '{sheet_name}' na planilha. Confira se o nome "
@@ -285,6 +291,28 @@ def marcar_homonimos(rows):
         chave = r.get("nome", "").strip().lower()
         r["_duplicado"] = contagem.get(chave, 0) > 1
     return rows
+
+
+def copiar_competidores_para_abas(competitor_rows_by_activity):
+    """Grava nome/telefone (e clã) de cada competidor na aba da atividade."""
+    for activity_key, competidores in competitor_rows_by_activity.items():
+        cfg = ACTIVITIES[activity_key]
+        sheet_name = cfg["sheet_name"]
+        headers = sheet_headers_for(activity_key, cfg)
+
+        comp_rows = []
+        for c in competidores:
+            row = [""] * len(headers)
+            row[headers.index("nome")] = sanitize_cell(c["nome"])
+            row[headers.index("telefone")] = sanitize_cell(c["telefone"])
+            if "cla" in headers:
+                row[headers.index("cla")] = sanitize_cell(c["cla"])
+            comp_rows.append(row)
+
+        try:
+            get_worksheet(sheet_name, headers).append_rows(comp_rows, value_input_option="USER_ENTERED")
+        except Exception as exc:  # noqa: BLE001
+            app.logger.error("Não consegui copiar os competidores para a aba '%s': %s", sheet_name, exc)
 
 
 def compra_ja_registrada(purchase_id, ws=None):
@@ -721,7 +749,9 @@ def competicao_enviar_nota(key):
             foto,
             f"{cfg['sheet_name']}_linha{row_number}_{uuid.uuid4().hex[:6]}",
             folder_id=DRIVE_ALVOS_FOLDER_ID,
-            publica=True,
+            # Não precisa de acesso público: a tela de Resultados busca a foto
+            # pelo próprio app (rota foto_alvo), sem login Google.
+            publica=False,
         )
     except Exception as exc:  # noqa: BLE001
         return jsonify({
@@ -744,6 +774,55 @@ def resultados():
     fisicos = [(key, ACTIVITIES[key]) for key in TORNEIO_FISICOS]
     culturais = [(key, ACTIVITIES[key]) for key in TORNEIO_CULTURAIS]
     return render_template("resultados_hub.html", fisicos=fisicos, culturais=culturais)
+
+
+# --- Fotos dos alvos em Resultados (v2) ------------------------------------
+# O link do Drive pedia login Google a cada toque no celular. Agora o próprio
+# app busca a foto no Drive (com a autorização que ele já tem) e entrega a
+# imagem direto — quem está em Resultados não precisa de conta Google, e a
+# pasta Alvos nem precisa mais ficar pública.
+_ID_DRIVE = re.compile(r"^[A-Za-z0-9_-]{10,}$")
+_fotos_em_cache = {}  # id -> (bytes, mimetype); guarda poucas fotos (Top 3)
+_LIMITE_CACHE_FOTOS = 30
+
+
+def id_da_foto(link):
+    """Extrai o ID do arquivo de um link do Drive (…/file/d/<ID>/view)."""
+    m = re.search(r"/file/d/([A-Za-z0-9_-]+)", link or "")
+    return m.group(1) if m else None
+
+
+@app.route("/resultados/foto/<file_id>")
+def foto_alvo(file_id):
+    if not _ID_DRIVE.match(file_id) or not DRIVE_ALVOS_FOLDER_ID:
+        return render_template("erro.html", codigo=404), 404
+
+    if file_id not in _fotos_em_cache:
+        try:
+            service = get_drive_service()
+            meta = service.files().get(fileId=file_id, fields="parents,mimeType").execute()
+            # Só entrega fotos da pasta Alvos — nunca comprovantes de PIX.
+            if DRIVE_ALVOS_FOLDER_ID not in (meta.get("parents") or []):
+                return render_template("erro.html", codigo=404), 404
+            conteudo = service.files().get_media(fileId=file_id).execute()
+        except Exception as exc:  # noqa: BLE001
+            app.logger.error("Falha ao buscar a foto do alvo %s: %s", file_id, exc)
+            return render_template("erro.html", codigo=500), 502
+        if len(_fotos_em_cache) >= _LIMITE_CACHE_FOTOS:
+            _fotos_em_cache.pop(next(iter(_fotos_em_cache)))
+        _fotos_em_cache[file_id] = (conteudo, meta.get("mimeType") or "image/jpeg")
+
+    conteudo, mimetype = _fotos_em_cache[file_id]
+    resposta = app.response_class(conteudo, mimetype=mimetype)
+    resposta.headers["Cache-Control"] = "public, max-age=86400"
+    return resposta
+
+
+@app.route("/saude")
+def saude():
+    """Rota levíssima (não fala com o Google) para um monitor externo chamar
+    de tempos em tempos e impedir que o Render "adormeça" o serviço."""
+    return "ok", 200
 
 
 @app.route("/privacidade")
@@ -781,6 +860,8 @@ def resultado_atividade(key):
         # Swordplay, Rachar Lenha e as culturais: Top 3 pela posição lançada.
         rows = _ordenar_por_posicao(rows)
 
+    for r in rows[:3]:
+        r["_foto_id"] = id_da_foto(r.get("foto_alvo"))
     return render_template("resultado_torneio.html", cfg=cfg, top3=rows[:3], erro=erro)
 
 
@@ -825,11 +906,14 @@ def submit():
     if not re.fullmatch(r"[0-9a-f]{8}", purchase_id):
         purchase_id = uuid.uuid4().hex[:8]  # celular com app antigo: gera aqui
 
-    try:
-        if compra_ja_registrada(purchase_id):
-            return jsonify({"ok": True, "purchase_id": purchase_id, "avisos": [], "ja_registrada": True})
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"ok": False, "errors": [f"Erro ao acessar a planilha: {exc}"]}), 502
+    # Com foto, confere antes de subir (evita mandar a mesma foto duas vezes).
+    # Sem foto, basta a conferência logo antes de gravar, mais abaixo.
+    if photo_file and photo_file.filename:
+        try:
+            if compra_ja_registrada(purchase_id):
+                return jsonify({"ok": True, "purchase_id": purchase_id, "avisos": [], "ja_registrada": True})
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"ok": False, "errors": [f"Erro ao acessar a planilha: {exc}"]}), 502
 
     # Na planilha, o ID vai com apóstrofo na frente pra ser sempre texto:
     # sem isso, o Sheets "traduz" IDs como 12e45678 (notação científica)
@@ -923,33 +1007,17 @@ def submit():
             "errors": [f"{detalhe} houve um erro ao gravar na planilha: {exc}"],
         }), 502
 
-    # Copia os competidores pras abas de cada atividade (arco_flecha, machado,
-    # swordplay, rachar_lenha, vestimenta, bardos, feiticos, beberrao). A
-    # compra já foi salva com sucesso acima — se isso aqui falhar (ex.: aba
-    # não existe ainda), a compra continua válida, só avisa em vez de travar
-    # o envio.
-    for activity_key, competidores in competitor_rows_by_activity.items():
-        cfg = ACTIVITIES[activity_key]
-        sheet_name = cfg["sheet_name"]
-        headers = sheet_headers_for(activity_key, cfg)
-
-        comp_rows = []
-        for c in competidores:
-            row = [""] * len(headers)
-            row[headers.index("nome")] = sanitize_cell(c["nome"])
-            row[headers.index("telefone")] = sanitize_cell(c["telefone"])
-            if "cla" in headers:
-                row[headers.index("cla")] = sanitize_cell(c["cla"])
-            comp_rows.append(row)
-
-        try:
-            modality_ws = get_worksheet(sheet_name, headers)
-            modality_ws.append_rows(comp_rows, value_input_option="USER_ENTERED")
-        except Exception as exc:  # noqa: BLE001
-            avisos.append(
-                f"A compra foi salva, mas não consegui copiar os competidores "
-                f"para a aba '{sheet_name}': {exc}"
-            )
+    # Copia os competidores pras abas de cada atividade. A compra já está
+    # salva na aba aquisicao — a cópia roda em segundo plano (v2), então quem
+    # está atendendo recebe o "Compra registrada!" sem esperar mais uma
+    # gravação por atividade. Se a cópia falhar (ex.: aba não existe), a
+    # compra continua válida e o erro fica só no log do Render.
+    if competitor_rows_by_activity:
+        threading.Thread(
+            target=copiar_competidores_para_abas,
+            args=(competitor_rows_by_activity,),
+            daemon=True,
+        ).start()
 
     return jsonify({"ok": True, "purchase_id": purchase_id, "avisos": avisos})
 
