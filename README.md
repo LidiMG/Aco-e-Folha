@@ -62,11 +62,11 @@ evento-app/
 │   ├── home.html               # Tela inicial (hub dos 3 modos)
 │   ├── login.html               # Login da equipe (Aquisição)
 │   ├── index.html                # Formulário de Aquisição
-│   ├── competicoes_hub.html      # Hub de Competições
+│   ├── competicoes_hub.html      # Hub de Competições (Torneios e Atividades Culturais)
 │   ├── competicao_pontuar.html   # Lançamento de notas (Arco/Machado)
 │   ├── competicao_ranking.html   # Lançamento de posição (Swordplay, Rachar Lenha, culturais)
 │   ├── resultados_hub.html       # Hub de Resultados
-│   ├── resultado_torneio.html    # Top 3 de um torneio
+│   ├── resultado_torneio.html    # Top 3 de cada atividade (torneios e culturais)
 │   ├── privacidade.html          # Política de Privacidade (link p/ OAuth em produção)
 │   ├── termos.html                # Termos de Serviço (idem)
 │   ├── erro.html                  # Página 404/500 amigável (rede de segurança geral)
@@ -75,6 +75,7 @@ evento-app/
     ├── style.css
     ├── app.js                    # Lógica da tela de Aquisição
     ├── fotos.js                  # Compressão da foto no próprio celular (v2)
+    ├── rede.js                   # Envio ao servidor com tratamento de erros (v2)
     ├── competicoes.js            # Lógica das telas de Competições
     ├── manifest.json
     ├── service-worker.js
@@ -245,13 +246,7 @@ o link definitivo é do tipo `https://SEU-SERVICO.onrender.com`).
   try/except de cada rota, mostrando um erro decente — em vez de ficar
   pendurada até o gunicorn cortar o processo (que aí sim gera um 500 sem
   mensagem nenhuma pra quem está usando).
-- **Manter o serviço acordado (opcional, recomendado em dia de evento)**:
-  a rota `/saude` responde "ok" sem falar com o Google. Um monitor
-  gratuito (como UptimeRobot ou cron-job.org) chamando
-  `https://SEU-SERVICO.onrender.com/saude` a cada 10 minutos impede o
-  Render de "adormecer" o serviço, e ninguém espera os 30-60 segundos do
-  primeiro acesso. As 750 horas mensais do plano gratuito cobrem um
-  serviço ligado o mês inteiro.
+- **Manter o serviço acordado**: ver "Monitor UptimeRobot", logo abaixo.
 - **Plano Free**: o serviço "dorme" depois de 15 minutos sem acesso, e
   demora uns 30-60 segundos pra acordar no primeiro acesso seguinte —
   isso é normal, não é erro. Ficar dias sem uso não tem problema nenhum,
@@ -259,6 +254,54 @@ o link definitivo é do tipo `https://SEU-SERVICO.onrender.com`).
 - Alternativas equivalentes, caso o Render dê algum problema no futuro:
   **Railway** (mesma lógica de Git + variáveis de ambiente) ou
   **PythonAnywhere** (mais simples ainda, sem lidar com `gunicorn`).
+
+### Monitor UptimeRobot (manter o serviço acordado)
+
+No plano gratuito, o Render "adormece" o serviço depois de 15 minutos
+sem acesso, e o primeiro acesso seguinte demora 30-60 segundos. Para que
+ninguém espere isso no dia do evento, um monitor gratuito do
+[UptimeRobot](https://uptimerobot.com) chama a rota `/saude` a cada 5
+minutos. Essa rota responde só "ok" e não fala com o Google.
+
+Como configurar:
+
+1. Abra `https://SEU-SERVICO.onrender.com/saude` no navegador e confira
+   que aparece "ok".
+2. No UptimeRobot, crie um monitor novo ("+ Add New Monitor") do tipo
+   **HTTP / website monitoring** (na interface nova ele é o tipo padrão:
+   a tela já começa pedindo a URL). Tipos **Ping** e **Port** não servem,
+   porque não abrem a página e o serviço continua adormecendo.
+3. URL: `https://SEU-SERVICO.onrender.com/saude`. Intervalo: **5
+   minutos**. Deixe o e-mail da organização nos alertas, para saber se o
+   app sair do ar.
+4. Para confirmar que está funcionando, abra os **Logs** do serviço no
+   Render: devem aparecer linhas `GET /saude` a cada 5 minutos.
+
+Custos: nenhum. O plano gratuito do UptimeRobot cobre esse uso; a banda
+gasta pela rota é irrelevante (cerca de 2MB por mês); e as 750 horas
+mensais do plano gratuito do Render cobrem um serviço acordado o mês
+inteiro. Atenção só se houver **outros serviços gratuitos na mesma conta
+do Render**: as 750 horas são divididas entre todos, e se estourarem o
+Render suspende os serviços até o mês virar (sem cobrar nada).
+
+### Entre um evento e outro: suspender e retomar
+
+O serviço fica desligado entre os eventos e é religado no mês do próximo.
+
+- **Desligar (depois do evento)**: primeiro **pause o monitor** no
+  UptimeRobot (senão ele manda e-mails de alerta), depois suspenda o
+  serviço no Render: na lista de serviços, marque o serviço e clique em
+  **Suspend**, ou entre no serviço → **Settings** → no fim da página,
+  **Suspend Web Service**. Cuidado para não clicar em **Delete**, logo ao
+  lado, que apaga o serviço de vez.
+- **Religar (antes do evento)**: no mesmo lugar, **Resume**; espere o
+  serviço subir, confira `/saude` no navegador e só então **reative o
+  monitor**. Variáveis de ambiente, Secret Files e Start Command ficam
+  guardados enquanto o serviço está suspenso — não precisa refazer nada.
+- **Na volta, antes do evento**, vale também rodar
+  `python setup_drive_auth.py` se o upload de fotos falhar (token do
+  Drive revogado ou trocado de conta) e colar o `drive_token.json` novo no
+  Secret File do Render.
 
 ### E os arquivos de credenciais (o `.json` da service account e o `drive_token.json`)?
 
@@ -316,23 +359,39 @@ tratar como texto puro em vez de tentar interpretar como fórmula. Sem
 isso, um nome digitado como `=1+1` viraria uma fórmula executada de
 verdade na célula.
 
-| Aba | O que recebe |
-|---|---|
-| `aquisicao` | Uma linha por atividade comprada — ver colunas abaixo |
-| `arco_flecha` | Inscritos + notas dos 4 tiros + total + link da foto do alvo |
-| `machado` | Inscritos + notas dos 3 tiros + total + link da foto do alvo |
-| `swordplay`, `rachar_lenha` | Inscritos + posição final no ranking |
-| `vestimenta`, `bardos`, `feiticos`, `beberrao` | Inscritos (nome/telefone, sem clã) + posição final |
+| Aba | Tipo | Colunas (cabeçalho exato) | Quem preenche |
+|---|---|---|---|
+| `aquisicao` | Compras | ver "Colunas da aba `aquisicao`", abaixo | Aquisição, uma linha por atividade (ou por competidor, nas competições) |
+| `arco_flecha` | Torneio com pontuação | `nome`, `cla`, `telefone`, `tiro1` a `tiro4`, `total`, `foto_alvo` | Aquisição copia nome/clã/telefone; Competições grava notas, total e o link da foto do alvo |
+| `machado` | Torneio com pontuação | `nome`, `cla`, `telefone`, `tiro1` a `tiro3`, `total`, `foto_alvo` | Idem |
+| `swordplay` | Torneio por posição | `nome`, `cla`, `telefone`, `posicao` | Aquisição copia nome/clã/telefone; Competições grava a posição |
+| `rachar_lenha` | Torneio por posição (só Competição, sem Treino) | `nome`, `cla`, `telefone`, `posicao` | Idem |
+| `vestimenta`, `bardos`, `feiticos` | Cultural (voto popular) | `nome`, `telefone`, `posicao` | Aquisição copia nome/telefone (sem clã); Competições grava a posição decidida pelo público |
+| `beberrao` | Cultural (vence quem beber mais rápido) | `nome`, `telefone`, `posicao` | Idem |
+
+Todas essas abas são lidas pela tela de Resultados, que mostra o Top 3 de
+cada uma (por `total` nas de pontuação, por `posicao` nas demais).
 
 O cabeçalho de qualquer uma dessas abas é criado sozinho na primeira vez
 que o app precisa ler ou escrever nela — não precisa criar manualmente.
+Só a aba em si precisa existir, com o nome exato. Como o app confere o
+cabeçalho uma vez só por processo, se você mudar uma aba com o app no ar
+(renomear, recriar), reinicie o serviço no Render.
+
+**Entre eventos, limpe as linhas de dados** (mantendo o cabeçalho) de
+todas as abas: linhas antigas de outro formato podem ficar desalinhadas
+com o cabeçalho atual.
 
 ### Colunas da aba `aquisicao`
 
 `id_compra | data_hora | atividade | modo | quantidade | valor_unitario | valor_total | forma_pagamento | nome_competidor | telefone_competidor | cla_competidor | link_foto | responsavel_nome | responsavel_email`
 
 - **id_compra**: mesmo ID para todas as atividades da mesma transação —
-  dá para somar por atividade ou por compra completa.
+  dá para somar por atividade ou por compra completa. São 8 caracteres
+  sorteados entre 0-9 e a-f, então às vezes saem só números (normal). É
+  criado pelo celular antes do envio (é o que impede compra duplicada em
+  nova tentativa) e gravado sempre como texto, para o Google Sheets não
+  "traduzir" IDs como `12e45678` em notação científica.
 - **valor_unitario / valor_total**: vêm dos preços em `config.py`
   (`preco_unitario` — dicionário `{"Treino": valor, "Competição": valor}`
   para as atividades com os dois modos, ou um número único para as demais),
@@ -533,8 +592,9 @@ do que a equipe viveu no dia:
   notas do Arco/Machado são restaurados se o navegador recarregar ao
   voltar da câmera.
 - **Privacidade**: comprovantes de PIX deixam de ficar abertos para
-  qualquer pessoa com o link; as fotos dos alvos ganham uma pasta própria,
-  essa sim compartilhada.
+  qualquer pessoa com o link, e as fotos dos alvos ganham uma pasta
+  própria. As duas pastas ficam privadas: em Resultados, a foto do alvo é
+  aberta pelo próprio app, sem login Google e sem link público.
 - **Ajustes feitos durante o evento**: preço de Beberrão e Rachar Lenha
   passou para R$ 10,00, e o `id_compra` passou a ser gravado sempre como
   texto na planilha.
