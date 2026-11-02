@@ -18,6 +18,7 @@ ACTIVITIES = {
         "preco_unitario": {"Treino": 20.00, "Competição": 30.00},
         "sheet_name": "arco_flecha",  # aba na planilha mestra que recebe os competidores
         "num_tiros": 4,          # quadrados de nota na tela de Competições
+        "nota_maxima": 10,       # maior nota possível em cada tentativa (v3)
         "icon": "🏹",
     },
     "arremesso_machado": {
@@ -28,6 +29,7 @@ ACTIVITIES = {
         "preco_unitario": {"Treino": 10.00, "Competição": 20.00},
         "sheet_name": "machado",
         "num_tiros": 3,
+        "nota_maxima": 10,
         "icon": "🪓",
     },
     "swordplay": {
@@ -114,12 +116,25 @@ TORNEIO_CULTURAIS = ["vestimenta", "bardos", "feiticos", "beberrao"]
 MODE_OPTIONS = ["Treino", "Competição"]
 PAYMENT_OPTIONS = ["PIX", "Dinheiro"]
 
-# Aba principal (a mesma de sempre) e cabeçalhos das abas de cada atividade.
+# Aba principal (a mesma de sempre) e aba de resumo criada pelo próprio app (v3).
 NOME_ABA_AQUISICAO = "aquisicao"
-COMPETITOR_SHEET_HEADERS = ["nome", "cla", "telefone"]  # físicas, antes de pontuar/posicionar
-CULTURAL_SHEET_HEADERS = ["nome", "telefone"]           # culturais — sem clã
-RANKING_HEADERS = ["nome", "cla", "telefone", "posicao"]  # físicas sem tiro — Swordplay, Rachar Lenha etc.
-CULTURAL_RANKING_HEADERS = ["nome", "telefone", "posicao"]  # culturais — sem clã, com posição (v2)
+NOME_ABA_RESUMO = "resumo"
+
+# v3: toda aba de atividade termina com duas colunas de controle, sempre no
+# fim (assim as colunas que já existiam não mudam de lugar):
+#   id_inscricao -> código único de cada inscrito: o código da compra + um
+#                   número ("ab12cd34-1"). Liga a linha da atividade à linha
+#                   da compra e permite achar a pessoa mesmo que a planilha
+#                   seja reordenada ou tenha linhas apagadas.
+#   situacao     -> vazio = inscrição valendo; "trocou" = a pessoa trocou de
+#                   atividade (registrado pela Administração) e sai das listas.
+COLUNAS_CONTROLE = ["id_inscricao", "situacao"]
+SITUACAO_TROCOU = "trocou"
+
+COMPETITOR_SHEET_HEADERS = ["nome", "cla", "telefone"] + COLUNAS_CONTROLE  # reserva (atividade nova sem resultado)
+CULTURAL_SHEET_HEADERS = ["nome", "telefone"] + COLUNAS_CONTROLE           # reserva (idem, sem clã)
+RANKING_HEADERS = ["nome", "cla", "telefone", "posicao"] + COLUNAS_CONTROLE  # físicas sem tiro — Swordplay, Rachar Lenha etc.
+CULTURAL_RANKING_HEADERS = ["nome", "telefone", "posicao"] + COLUNAS_CONTROLE  # culturais — sem clã, com posição
 
 # Todas as atividades que aparecem em Competições/Resultados, físicas e culturais.
 TODOS_TORNEIOS = TORNEIO_FISICOS + TORNEIO_CULTURAIS
@@ -128,14 +143,19 @@ TODOS_TORNEIOS = TORNEIO_FISICOS + TORNEIO_CULTURAIS
 def score_headers(num_tiros):
     """Cabeçalho da aba de uma atividade pontuada por tiros (Arco/Machado):
     nome/clã/telefone + um "tiroN" por tentativa + total + link da foto do
-    alvo (v2: a foto é obrigatória e serve de prova para desempate)."""
+    alvo (a foto é obrigatória e serve de prova para desempate) + as colunas
+    de controle (v3) + três colunas da organização (v3):
+      desempate    -> ordem decidida pelo organizador quando há empate no Top 3
+      alterado_por -> e-mail de quem corrigiu ou limpou a nota pela última vez
+      alterado_em  -> data e hora dessa correção"""
     tiros = [f"tiro{i}" for i in range(1, num_tiros + 1)]
-    return ["nome", "cla", "telefone"] + tiros + ["total", "foto_alvo"]
+    return (["nome", "cla", "telefone"] + tiros + ["total", "foto_alvo"]
+            + COLUNAS_CONTROLE + ["desempate", "alterado_por", "alterado_em"])
 
 
 def sheet_headers_for(key, cfg):
-    """Cabeçalho correto da aba de UMA atividade, seja pra alimentar (a
-    partir da Aquisição) ou pra ler nas telas de Competições/Resultados —
+    """Cabeçalho correto da aba de UMA atividade, seja para alimentar (a
+    partir da Aquisição) ou para ler nas telas de Competições/Resultados —
     usar sempre esta função garante que todo mundo concorda no mesmo
     cabeçalho, sem risco de uma tela reescrever com um formato diferente
     do que outra espera. Qualquer física sem num_tiros (Swordplay, Rachar
@@ -168,4 +188,15 @@ SHEET_HEADERS = [
     "link_foto",
     "responsavel_nome",   # vem do login com Google, não é mais texto livre
     "responsavel_email",
+    # v3 — sempre no fim, para as colunas acima (e as fórmulas que usam
+    # as letras delas) continuarem no mesmo lugar:
+    "id_inscricao",      # código do inscrito (só nas linhas de competidor)
+    "situacao",          # vazio = compra normal; "troca" = linha de uma troca
+    "observacao",        # explicação das linhas de troca
+    "assinatura",        # resumo do conteúdo da compra (detecta reenvio com outros dados)
 ]
+
+# v3: forma de pagamento usada nas linhas de troca que só movem o crédito
+# de uma atividade para outra (não entra dinheiro novo no caixa).
+FORMA_TROCA = "Troca"
+SITUACAO_TROCA = "troca"

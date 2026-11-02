@@ -1,0 +1,19 @@
+# Roda os testes automáticos a cada envio (push) para o GitHub.
+# O resultado aparece na aba "Actions" do repositório (✓ verde ou ✗ vermelho).
+# Os testes usam uma planilha simulada: não precisam de nenhuma credencial.
+name: Testes
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q

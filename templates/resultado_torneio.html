@@ -27,20 +27,30 @@
   {% endif %}
 
   <p class="section-hint">
-    Atualiza sozinho a cada nova nota lançada —
-    <a href="javascript:location.reload()">recarregue a página</a> pra ver o mais recente.
+    Novas notas e posições aparecem em até 30 segundos —
+    <a href="javascript:location.reload()">recarregue a página</a> para ver o mais recente.
   </p>
 
-  {% if not top3 %}
+  {% if not podio %}
   <p class="empty-hint">Ainda não há resultados suficientes nesta atividade.</p>
   {% else %}
   <div class="podium-list">
-    {% for row in top3 %}
-    <div class="podium-item podium-item--{{ loop.index }}">
-      <span class="podium-item__place">{{ loop.index }}º</span>
+    {% for row in podio %}
+    {% if row._a_definir %}
+    <div class="podium-item podium-item--{{ row._posicao }} podium-item--vazio">
+      <span class="podium-item__place">{{ row._posicao }}º</span>
+      <span class="podium-item__nameblock">
+        <span class="podium-item__name">A definir</span>
+      </span>
+    </div>
+    {% else %}
+    <div class="podium-item podium-item--{{ row._posicao }}">
+      <span class="podium-item__place">{{ row._posicao }}º</span>
       <span class="podium-item__nameblock">
         <span class="podium-item__name">{{ row.nome }}</span>
         <span class="podium-item__meta">{{ row.cla }}{% if row.cla and row.telefone %} · {% endif %}{{ row.telefone }}</span>
+        {% if row._empate %}<span class="selo">empate — aguardando desempate</span>{% endif %}
+        {% if row._desempatado %}<span class="selo selo--ok">decidido no desempate</span>{% endif %}
         {% if row._foto_id %}
         <details class="podium-item__foto">
           <summary>📷 Ver foto do alvo</summary>
@@ -50,9 +60,10 @@
         {% endif %}
       </span>
       <span class="podium-item__score">
-        {% if row.total is defined %}{{ row.total }} pts{% else %}Posição {{ row.posicao }}{% endif %}
+        {% if cfg.num_tiros %}{{ row.total }} pts{% endif %}
       </span>
     </div>
+    {% endif %}
     {% endfor %}
   </div>
   {% endif %}

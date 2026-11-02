@@ -44,11 +44,41 @@
     <span class="mode-card__icon" aria-hidden="true">🏆</span>
     <span class="mode-card__text">
       <span class="mode-card__label">Resultados</span>
-      <span class="mode-card__hint">Top 3 e atividades culturais</span>
+      <span class="mode-card__hint">Top 3 dos torneios e das atividades culturais</span>
     </span>
     <span class="mode-card__arrow" aria-hidden="true">›</span>
   </a>
+  {% if eh_administracao %}
+  <a class="mode-card mode-card--administracao" href="{{ url_for('administracao') }}">
+    <span class="mode-card__icon" aria-hidden="true">🗝️</span>
+    <span class="mode-card__text">
+      <span class="mode-card__label">Administração</span>
+      <span class="mode-card__hint">Trocas, resumo e arquivo do evento</span>
+    </span>
+    <span class="mode-card__arrow" aria-hidden="true">›</span>
+  </a>
+  {% endif %}
 </main>
+
+{% if user_name %}
+<p class="home-sessao">
+  Conectado como {{ user_name }}{% if papel == "organizacao" %} (organização){% elif papel == "administracao" %} (administração){% endif %}
+  · <a href="{{ url_for('logout') }}">Sair</a>
+</p>
+{% endif %}
+
+<script>
+  // Service worker na raiz (v3), para o app continuar instalável. Remove o
+  // registro antigo, que ficava em /static/ e não cuidava de nenhuma página.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.getRegistrations().then((registros) => {
+        registros.forEach((r) => { if (r.scope.endsWith("/static/")) r.unregister(); });
+      }).catch(() => {});
+      navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+    });
+  }
+</script>
 
 </body>
 </html>

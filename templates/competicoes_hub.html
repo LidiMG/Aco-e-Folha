@@ -17,6 +17,7 @@
   <p class="topbar__subtitle">Aço &amp; Folha</p>
   <p class="topbar__user">
     <a href="{{ url_for('home') }}">‹ Início</a>
+    {% if eh_organizacao %} · Organização{% endif %}
   </p>
 </header>
 

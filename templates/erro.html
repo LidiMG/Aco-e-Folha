@@ -14,13 +14,18 @@
 
 <header class="topbar">
   <h1>Aço &amp; Folha</h1>
-  <p class="topbar__subtitle">Algo deu errado</p>
+  <p class="topbar__subtitle">{% if codigo == 403 %}Acesso restrito{% else %}Algo deu errado{% endif %}</p>
 </header>
 
 <main class="wrap">
   <div class="banner banner--error">
     {% if codigo == 404 %}
-    Essa página não existe. Confira o endereço, ou volte pro início.
+    Essa página não existe. Confira o endereço, ou volte para o início.
+    {% elif codigo == 403 %}
+    Esta área é só da organização do evento. Se você é da organização,
+    saia e entre de novo com o e-mail Google cadastrado.
+    {% elif codigo == 413 %}
+    O arquivo enviado é grande demais. Tire outra foto e tente de novo.
     {% else %}
     Alguma coisa falhou inesperadamente aqui — pode ser um soluço
     passageiro de conexão. Tente de novo em alguns segundos; se persistir,

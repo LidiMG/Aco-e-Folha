@@ -7,7 +7,7 @@
 // tempo-limite.
 
 (function () {
-  const TEMPO_LIMITE_MS = 60 * 1000; // o servidor desiste em ~45s; aqui damos folga
+  const TEMPO_LIMITE_MS = 60 * 1000; // o servidor nunca começa a gravar uma compra depois de 35s (v3)
 
   class ErroDeEnvio extends Error {
     constructor(mensagem, tipo) {

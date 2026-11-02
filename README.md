@@ -1,7 +1,8 @@
 # Aço & Folha — Sistema de Gestão do Evento
 
-**Versão 2** — revisada depois do uso real da versão 1 no evento (ver
-seção "Histórico de versões", no fim deste arquivo).
+**Versão 3** — preparada para o próximo evento a partir de uma revisão
+completa da versão 2 (ver seção "Histórico de versões", no fim deste
+arquivo).
 
 Este projeto foi desenvolvido para o evento **Aço & Folha**, para dar conta
 de três frentes que antes seriam planilhas separadas e soltas: registrar as
@@ -23,30 +24,37 @@ alimenta a mesma planilha Google Sheets, e boa parte se alimenta sozinha.
 
 ## 1. O que o app faz
 
-O app tem uma tela inicial com três caminhos:
+O app tem uma tela inicial com três caminhos (e um quarto, só para a
+administração):
 
-- **Aquisições** (`/aquisicao`, exige login com Google) — a equipe de
+- **Aquisições** (`/aquisicao`, exige login com Google e o código da
+  equipe) — a equipe de
   atendimento registra cada compra: foto do comprovante (opcional),
   atividades e quantidades (com preço calculado automaticamente), forma de
   pagamento, e nome/telefone/clã de quem vai competir, quando aplicável.
   Tudo isso vira uma linha na planilha, por atividade.
-- **Competições** (`/competicoes`, sem login) — organizada em Torneios e
-  Atividades Culturais. Os instrutores lançam os resultados: quadrados de
-  pontuação mais a foto final do alvo (obrigatória) para Arco e
-  Flecha/Arremesso de Machado, e a posição final no ranking para
-  Swordplay, Rachar Lenha e todas as culturais.
-- **Resultados** (`/resultados`, sem login) — o Top 3 de cada torneio e de
+- **Competições** (`/competicoes`, exige o código da equipe) — organizada
+  em Torneios e Atividades Culturais. Os instrutores lançam os resultados:
+  quadrados de pontuação (de 0 a 10) mais a foto final do alvo
+  (obrigatória) para Arco e Flecha/Arremesso de Machado, e a posição final
+  no ranking para Swordplay, Rachar Lenha e todas as culturais. A
+  organização também corrige notas e registra desempates por aqui.
+- **Resultados** (`/resultados`, aberto) — o Top 3 de cada torneio e de
   cada atividade cultural, calculado automaticamente a partir do que foi
-  lançado em Competições.
+  lançado em Competições, com os empates indicados.
+- **Administração** (`/administracao`, só para o e-mail da administração)
+  — trocas de atividade, aba de resumo da planilha e o preparo da
+  planilha para arquivo depois do evento (seção 10.2).
 
 ### Mapa do sistema (PDF)
 
 O arquivo `mapa_do_sistema.pdf`, incluído neste repositório, tem os
 diagramas da estrutura completa do app — a tela inicial e os três modos,
 com o fluxo de dentro de cada um (Aquisição, Competições e Resultados).
-Serve como um guia visual rápido pra quem estiver sendo treinado pra usar
-o app — ajuda a entender de cara "quem faz o quê, onde" sem precisar ler
-este README inteiro.
+Serve como um guia visual rápido para quem estiver sendo treinado para
+usar o app — ajuda a entender de cara "quem faz o quê, onde" sem precisar
+ler este README inteiro. Está atualizado com as telas da v3 (código da
+equipe, Administração, correção de nota e desempate).
 
 ## 2. Estrutura do projeto
 
@@ -56,11 +64,18 @@ evento-app/
 ├── config.py                  # Atividades, preços, ícones — edite aqui para mudar o "cardápio"
 ├── setup_drive_auth.py        # Script de autorização única do Drive (rodar localmente)
 ├── requirements.txt
+├── requirements-dev.txt        # Só para rodar os testes (pytest)
 ├── .env.example                # Modelo do .env — copie e preencha
-├── mapa_do_sistema.pdf         # Diagramas da estrutura do app — bom pra treinar gente nova
+├── mapa_do_sistema.pdf         # Diagramas da estrutura do app — bom para treinar gente nova
+├── tests/                      # Testes automáticos com planilha simulada (v3)
+│   ├── conftest.py
+│   └── test_app.py
+├── .github/workflows/testes.yml # Roda os testes no GitHub a cada push (v3)
 ├── templates/
-│   ├── home.html               # Tela inicial (hub dos 3 modos)
-│   ├── login.html               # Login da equipe (Aquisição)
+│   ├── home.html               # Tela inicial (hub dos modos)
+│   ├── login.html               # Login com Google (Aquisição, organização, administração)
+│   ├── entrar_equipe.html       # Código da equipe (v3)
+│   ├── administracao.html       # Área da administração (v3)
 │   ├── index.html                # Formulário de Aquisição
 │   ├── competicoes_hub.html      # Hub de Competições (Torneios e Atividades Culturais)
 │   ├── competicao_pontuar.html   # Lançamento de notas (Arco/Machado)
@@ -77,8 +92,9 @@ evento-app/
     ├── fotos.js                  # Compressão da foto no próprio celular (v2)
     ├── rede.js                   # Envio ao servidor com tratamento de erros (v2)
     ├── competicoes.js            # Lógica das telas de Competições
+    ├── admin.js                  # Lógica da Administração (v3)
     ├── manifest.json
-    ├── service-worker.js
+    ├── service-worker.js         # Servido na raiz do site, em /service-worker.js (v3)
     ├── icon-192.png / icon-512.png             # ícone "any" (iPhone/Windows/Mac)
     ├── icon-192-maskable.png / icon-512-maskable.png  # ícone "maskable" (Android)
     └── img/hero-aco-folha.jpg    # Imagem de topo da tela inicial
@@ -104,7 +120,7 @@ processo com a conta oficial da equipe quando for para produção.
    Dê um nome (ex.: `evento-app-bot`) e conclua. Depois, na conta de serviço
    criada, vá em "Chaves" → "Adicionar chave" → "Criar nova chave" → JSON.
    Isso baixa um arquivo `.json` — **guarde-o fora do controle de versão**
-   (nunca suba esse arquivo pro GitHub).
+   (nunca suba esse arquivo para o GitHub).
    **Parte B — OAuth Client ID** (para o login "Entrar com Google" da
    equipe): uma credencial diferente da Service Account — é ela que
    permite que cada pessoa da equipe entre com a própria conta.
@@ -138,9 +154,9 @@ processo com a conta oficial da equipe quando for para produção.
    2. Baixe o JSON gerado, salve como `client_secret.json` dentro da
       pasta `evento-app/`.
    3. Rode `python setup_drive_auth.py` — abre uma janela do navegador
-      pedindo pra você entrar e autorizar. Ao concluir, gera um
+      pedindo para você entrar e autorizar. Ao concluir, gera um
       `drive_token.json` na mesma pasta.
-   4. Pronto — o app já lê esse arquivo automaticamente daqui pra frente.
+   4. Pronto — o app já lê esse arquivo automaticamente daqui para frente.
       Você só precisa repetir isso se revogar o acesso ou trocar de conta.
 
    As fotos vão para a raiz do seu Drive por padrão, a não ser que você
@@ -151,7 +167,7 @@ processo com a conta oficial da equipe quando for para produção.
    (padrão), essa autorização expira a cada **7 dias** — os uploads de
    foto param de funcionar até você rodar `python setup_drive_auth.py`
    de novo. Não afeta o login da equipe (isso é isento dessa regra).
-   Se isso incomodar no futuro, dá pra resolver de vez publicando o
+   Se isso incomodar no futuro, dá para resolver de vez publicando o
    projeto como "Em produção" na tela de permissão OAuth do Google Cloud.
 
 ## 4. Configurar o ambiente local
@@ -174,8 +190,15 @@ GOOGLE_DRIVE_ALVOS_FOLDER_ID=id_da_pasta_das_fotos_dos_alvos
 GOOGLE_OAUTH_CLIENT_ID=123...apps.googleusercontent.com
 GOOGLE_DRIVE_TOKEN_FILE=drive_token.json
 FLASK_SECRET_KEY=uma-string-longa-e-aleatoria-qualquer
+CODIGO_EQUIPE=
+EMAIL_ORGANIZACAO=organizador@gmail.com
+EMAIL_ADMINISTRACAO=seuemail@gmail.com
 ALLOWED_EMAILS=
 ```
+
+As três variáveis de acesso (`CODIGO_EQUIPE`, `EMAIL_ORGANIZACAO` e
+`EMAIL_ADMINISTRACAO`) estão explicadas na seção 7. Localmente, deixar
+`CODIGO_EQUIPE` vazio faz o app não pedir código nenhum.
 
 **Duas pastas no Drive, com acessos diferentes (v2):**
 
@@ -193,7 +216,7 @@ ALLOWED_EMAILS=
 
 O app lê esse arquivo sozinho toda vez que inicia — não precisa de
 `export` nenhum, em nenhum terminal, nunca mais. O `.env` já está
-protegido no `.gitignore`, então não corre risco de subir pro Git por
+protegido no `.gitignore`, então não corre risco de subir para o Git por
 engano.
 
 ## 5. Rodar localmente
@@ -224,31 +247,36 @@ Rodar só no seu computador não é viável no dia do evento. O projeto está
 hospedado gratuitamente no **Render** (plano Free, sem domínio próprio —
 o link definitivo é do tipo `https://SEU-SERVICO.onrender.com`).
 
-- **Build Command**: `pip install -r requirements.txt && pip install pillow-heif`
-  — o `pillow-heif` fica de fora do `requirements.txt` de propósito (no
-  Windows local ele exige compilar C++ e trava a instalação), mas no
-  Linux do Render existe pacote pronto, então é instalado só lá, à parte.
-  Isso é o que permite o app comprimir fotos `.heic` (comuns em iPhone)
-  também — sem esse passo extra, fotos de iPhone ainda funcionam, só não
-  são comprimidas antes do upload.
+- **Build Command**: `pip install -r requirements.txt` — desde a v3, o
+  `pillow-heif` (que permite abrir fotos `.heic` de iPhone) está no
+  `requirements.txt`, com a versão fixada e uma condição que faz ele ser
+  instalado **só no Linux**: no Render ele entra; no Windows local ele é
+  pulado (lá ele exigiria compilar C++ e travaria a instalação). Antes, o
+  Build Command instalava a versão mais nova a cada deploy, e uma versão
+  nova com problema poderia quebrar o deploy na véspera do evento. O
+  Build Command antigo (`... && pip install pillow-heif`) continua
+  funcionando, mas pode ser simplificado.
 - **Start Command**: `gunicorn app:app --workers 2 --threads 4 --timeout 45`
   — 2 processos com 4 linhas de atendimento cada, ou seja, até 8 envios
   ao mesmo tempo. Na v1 eram 3 processos simples, e no evento, com umas 5
   pessoas enviando juntas, formava fila: como cada envio passa a maior
   parte do tempo só esperando o Google responder, as threads aproveitam
-  essa espera sem gastar mais memória. O `--timeout 45` dá mais folga (padrão do gunicorn é 30s)
-  antes de considerar um processo "travado" e matá-lo — importante bem
-  no momento em que o serviço está acordando do modo gratuito, quando
-  as chamadas ao Google costumam ficar mais lentas que o normal.
+  essa espera sem gastar mais memória. Com threads, o `--timeout 45` só
+  reinicia um processo realmente travado — ele **não** interrompe um
+  envio lento. Quem limita o tempo de cada envio é o tempo-limite de rede
+  (abaixo) e, na compra, o prazo de 35 segundos da seção 9.
 - **Tempo-limite de rede no próprio código**: `socket.setdefaulttimeout(25)`
   no topo do `app.py` garante que uma chamada ao Google (Sheets, Drive,
   verificação de login) que travar falha sozinha em 25s — dentro do
   try/except de cada rota, mostrando um erro decente — em vez de ficar
   pendurada até o gunicorn cortar o processo (que aí sim gera um 500 sem
-  mensagem nenhuma pra quem está usando).
+  mensagem nenhuma para quem está usando).
+- **Variáveis de acesso (v3)**: em Environment, crie `CODIGO_EQUIPE`,
+  `EMAIL_ORGANIZACAO` e `EMAIL_ADMINISTRACAO` (seção 7). Sem
+  `CODIGO_EQUIPE`, Competições e Aquisição ficam sem código.
 - **Manter o serviço acordado**: ver "Monitor UptimeRobot", logo abaixo.
 - **Plano Free**: o serviço "dorme" depois de 15 minutos sem acesso, e
-  demora uns 30-60 segundos pra acordar no primeiro acesso seguinte —
+  demora uns 30-60 segundos para acordar no primeiro acesso seguinte —
   isso é normal, não é erro. Ficar dias sem uso não tem problema nenhum,
   nem risco do serviço ser apagado por inatividade.
 - Alternativas equivalentes, caso o Render dê algum problema no futuro:
@@ -296,7 +324,8 @@ O serviço fica desligado entre os eventos e é religado no mês do próximo.
   lado, que apaga o serviço de vez.
 - **Religar (antes do evento)**: no mesmo lugar, **Resume**; espere o
   serviço subir, confira `/saude` no navegador e só então **reative o
-  monitor**. Variáveis de ambiente, Secret Files e Start Command ficam
+  monitor**. Troque também o `CODIGO_EQUIPE` (Environment) e combine o
+  código novo com a equipe. Variáveis de ambiente, Secret Files e Start Command ficam
   guardados enquanto o serviço está suspenso — não precisa refazer nada.
 - **Na volta, antes do evento**, vale também rodar
   `python setup_drive_auth.py` se o upload de fotos falhar (token do
@@ -317,7 +346,7 @@ servidor — o `client_secret.json` é usado só localmente, uma vez, pelo
   caminho (ex.: `service-account.json`), e o Render cria o arquivo no
   servidor sozinho, sem passar pelo Git. Depois é só apontar
   `GOOGLE_SERVICE_ACCOUNT_FILE` e `GOOGLE_DRIVE_TOKEN_FILE` (nas
-  variáveis de ambiente normais) para o caminho que o Render usa pra
+  variáveis de ambiente normais) para o caminho que o Render usa para
   esses secret files (geralmente `/etc/secrets/<nome-do-arquivo>`).
 - **PythonAnywhere**: mais simples ainda — a aba "Files" do painel deixa
   você fazer upload de arquivos direto para a sua pasta pessoal no
@@ -325,24 +354,40 @@ servidor — o `client_secret.json` é usado só localmente, uma vez, pelo
   privada (fora de qualquer pasta pública do site) e aponta as variáveis
   de ambiente para esse caminho.
 
-Quando tiver escolhido a plataforma, é só avisar que dá pra preparar o
+Quando tiver escolhido a plataforma, é só avisar que dá para preparar o
 arquivo de configuração específico dela (`Procfile`, `render.yaml` etc.)
 e o passo a passo exato de onde colar cada credencial.
 
-## 7. Login da equipe
+## 7. Acessos: código da equipe, organização e administração (v3)
 
-Só a Aquisição exige login — Competições e Resultados ficam abertos de
-propósito, porque quem preenche muda ao longo do dia e o gestor pediu o
-caminho mais simples possível.
+A organização pediu acesso fácil — a equipe muda no dia, se alguém falta
+— então ninguém da equipe precisa de cadastro. Mesmo assim, a v3 fecha a
+porta para quem só recebeu o link por acaso:
 
-- Quem tenta acessar `/aquisicao` sem estar logado é redirecionado pro
-  login, e volta para `/aquisicao` automaticamente depois de entrar.
-- Se `ALLOWED_EMAILS` estiver definida no `.env`, só os e-mails dessa
-  lista conseguem entrar. Hoje está vazia de propósito — qualquer Conta
-  Google consegue logar, já que a equipe de atendimento muda no dia.
-- O nome e e-mail de quem estava logado vão automaticamente para as
-  colunas `responsavel_nome` e `responsavel_email` da planilha.
-- "Sair" (link no topo da tela de Aquisição) encerra a sessão local.
+| Quem | Como entra | O que pode |
+|---|---|---|
+| Equipe (atendimento e instrutores) | **Código da equipe**, digitado uma vez por celular (vale 7 dias) | Lançar notas e posições; na Aquisição, registrar compras (com login Google) |
+| Organização | **Login Google** com o e-mail de `EMAIL_ORGANIZACAO` (sem código) | Tudo da equipe, mais corrigir notas e registrar desempates |
+| Administração | **Login Google** com o e-mail de `EMAIL_ADMINISTRACAO` (sem código) | Tudo da organização, mais a área de Administração |
+| Qualquer pessoa | — | Ver Resultados |
+
+- **Código da equipe** (`CODIGO_EQUIPE`): use só números (4 a 6). Troque a
+  cada evento no painel do Render; quando ele muda, todos os celulares
+  precisam digitar o novo. Para alguém novo no dia, basta passar o código.
+  Depois de 5 tentativas erradas, o celular espera 10 minutos.
+- **Organização e administração**: os e-mails ficam só nas variáveis do
+  Render (nunca no código). Mais de um e-mail: separe por vírgula. O
+  organizador entra pela tela do código, no link "É da organização?
+  Entre com a sua Conta Google". O login só aceita contas com o e-mail
+  confirmado pelo Google.
+- **Aquisição**: exige o login Google (o nome e o e-mail vão para as
+  colunas `responsavel_nome` e `responsavel_email`) **e** o código da
+  equipe. Quem tenta acessar `/aquisicao` sem estar logado vai para o
+  login e volta sozinho depois.
+- `ALLOWED_EMAILS` continua opcional: se preenchida, só esses e-mails (e
+  os da organização e administração) conseguem entrar com o Google.
+- "Sair" encerra o login Google, mas mantém o código da equipe naquele
+  celular.
 
 ## 8. A planilha mestra
 
@@ -361,20 +406,41 @@ verdade na célula.
 
 | Aba | Tipo | Colunas (cabeçalho exato) | Quem preenche |
 |---|---|---|---|
-| `aquisicao` | Compras | ver "Colunas da aba `aquisicao`", abaixo | Aquisição, uma linha por atividade (ou por competidor, nas competições) |
-| `arco_flecha` | Torneio com pontuação | `nome`, `cla`, `telefone`, `tiro1` a `tiro4`, `total`, `foto_alvo` | Aquisição copia nome/clã/telefone; Competições grava notas, total e o link da foto do alvo |
-| `machado` | Torneio com pontuação | `nome`, `cla`, `telefone`, `tiro1` a `tiro3`, `total`, `foto_alvo` | Idem |
-| `swordplay` | Torneio por posição | `nome`, `cla`, `telefone`, `posicao` | Aquisição copia nome/clã/telefone; Competições grava a posição |
-| `rachar_lenha` | Torneio por posição (só Competição, sem Treino) | `nome`, `cla`, `telefone`, `posicao` | Idem |
-| `vestimenta`, `bardos`, `feiticos` | Cultural (voto popular) | `nome`, `telefone`, `posicao` | Aquisição copia nome/telefone (sem clã); Competições grava a posição decidida pelo público |
-| `beberrao` | Cultural (vence quem beber mais rápido) | `nome`, `telefone`, `posicao` | Idem |
+| `aquisicao` | Compras e trocas | ver "Colunas da aba `aquisicao`", abaixo | Aquisição, uma linha por atividade (ou por competidor, nas competições); Administração, nas trocas |
+| `arco_flecha` | Torneio com pontuação | `nome`, `cla`, `telefone`, `tiro1` a `tiro4`, `total`, `foto_alvo`, `id_inscricao`, `situacao`, `desempate`, `alterado_por`, `alterado_em` | Aquisição copia nome/clã/telefone/código; Competições grava notas, total e o link da foto do alvo; a organização grava desempate e correções |
+| `machado` | Torneio com pontuação | `nome`, `cla`, `telefone`, `tiro1` a `tiro3`, `total`, `foto_alvo`, `id_inscricao`, `situacao`, `desempate`, `alterado_por`, `alterado_em` | Idem |
+| `swordplay` | Torneio por posição | `nome`, `cla`, `telefone`, `posicao`, `id_inscricao`, `situacao` | Aquisição copia nome/clã/telefone/código; Competições grava a posição |
+| `rachar_lenha` | Torneio por posição (só Competição, sem Treino) | `nome`, `cla`, `telefone`, `posicao`, `id_inscricao`, `situacao` | Idem |
+| `vestimenta`, `bardos`, `feiticos` | Cultural (voto popular) | `nome`, `telefone`, `posicao`, `id_inscricao`, `situacao` | Aquisição copia nome/telefone/código (sem clã); Competições grava a posição decidida pelo público |
+| `beberrao` | Cultural (vence quem beber mais rápido) | `nome`, `telefone`, `posicao`, `id_inscricao`, `situacao` | Idem |
+| `resumo` | Totais do evento (v3) | criada e refeita pelo próprio app | O app, com fórmulas prontas (seção 10.2) |
+
+**Colunas de controle (v3)**, sempre no fim das abas das atividades:
+
+- `id_inscricao`: código de cada inscrito — o código da compra mais um
+  número (`ab12cd34-1`). É o mesmo na aba `aquisicao` e na aba da
+  atividade, e é por ele que o app acha a pessoa certa ao gravar uma nota
+  ou posição, mesmo que a planilha tenha sido reordenada ou tenha linhas
+  apagadas depois que a tela foi aberta.
+- `situacao`: vazio = inscrição valendo; `trocou` = a pessoa trocou de
+  atividade pela Administração e sai das listas e dos resultados (a linha
+  não é apagada, para ficar o histórico).
+- Linhas incluídas à mão na planilha (Plano B), sem `id_inscricao`,
+  continuam funcionando: nesse caso, o app só grava se o nome naquela
+  linha ainda for o mesmo que a tela mostrava.
+
+⚠️ **Nunca insira colunas no meio das abas.** O app lê e grava cada
+coluna pela posição dela, e reescreve a linha 1 se o cabeçalho estiver
+diferente do esperado. Uma coluna nova no meio faz notas e posições
+irem para o lugar errado. Colunas extras, só depois da última.
 
 Todas essas abas são lidas pela tela de Resultados, que mostra o Top 3 de
 cada uma (por `total` nas de pontuação, por `posicao` nas demais).
 
 O cabeçalho de qualquer uma dessas abas é criado sozinho na primeira vez
 que o app precisa ler ou escrever nela — não precisa criar manualmente.
-Só a aba em si precisa existir, com o nome exato. Como o app confere o
+Só a aba em si precisa existir, com o nome exato (a aba `resumo` nem
+isso: o app cria). Como o app confere o
 cabeçalho uma vez só por processo, se você mudar uma aba com o app no ar
 (renomear, recriar), reinicie o serviço no Render.
 
@@ -384,8 +450,13 @@ com o cabeçalho atual.
 
 ### Colunas da aba `aquisicao`
 
-`id_compra | data_hora | atividade | modo | quantidade | valor_unitario | valor_total | forma_pagamento | nome_competidor | telefone_competidor | cla_competidor | link_foto | responsavel_nome | responsavel_email`
+`id_compra | data_hora | atividade | modo | quantidade | valor_unitario | valor_total | forma_pagamento | nome_competidor | telefone_competidor | cla_competidor | link_foto | responsavel_nome | responsavel_email | id_inscricao | situacao | observacao | assinatura`
 
+As quatro últimas entraram na v3, no fim, para as colunas antigas (e as
+fórmulas que usam as letras delas) não mudarem de lugar.
+
+- **data_hora**: no horário de Brasília (v3). Até a v2, saía no horário
+  do servidor do Render (UTC), 3 horas adiantado.
 - **id_compra**: mesmo ID para todas as atividades da mesma transação —
   dá para somar por atividade ou por compra completa. São 8 caracteres
   sorteados entre 0-9 e a-f, então às vezes saem só números (normal). É
@@ -394,9 +465,11 @@ com o cabeçalho atual.
   "traduzir" IDs como `12e45678` em notação científica.
 - **valor_unitario / valor_total**: vêm dos preços em `config.py`
   (`preco_unitario` — dicionário `{"Treino": valor, "Competição": valor}`
-  para as atividades com os dois modos, ou um número único para as demais),
-  formatados como moeda brasileira ("R$ 20,00"). Se faltar um preço,
-  deixe `None` no lugar — a linha fica só com essas colunas vazias.
+  para as atividades com os dois modos, ou um número único para as demais).
+  Desde a v3 são gravados como **números** (a coluna é formatada como
+  moeda pelo próprio app), e não mais como o texto "R$ 20,00" — assim as
+  somas funcionam em qualquer configuração de idioma da planilha. Se faltar
+  um preço, deixe `None` no lugar — a linha fica só com essas colunas vazias.
 - **forma_pagamento**: PIX ou Dinheiro, uma vez por compra. **A foto é
   sempre opcional**, em qualquer forma de pagamento — o gestor preferiu
   assim para não formar fila esperando a foto. Em Dinheiro, a etapa da
@@ -415,6 +488,12 @@ com o cabeçalho atual.
   próprias delas. Cada competidor vira sua própria linha, com
   `quantidade` sempre 1 — mesmo que várias pessoas comprem juntas,
   evitando contar errado ao somar a coluna.
+- **id_inscricao**: o código de cada competidor (ver "Colunas de
+  controle", acima). Vazio nas linhas de treino.
+- **situacao / observacao**: vazias numa compra normal; `troca` e a
+  explicação da troca nas linhas registradas pela Administração.
+- **assinatura**: um resumo curto do conteúdo da compra, usado para
+  reconhecer uma nova tentativa da mesma compra (seção 9).
 - **Treino e Competição da mesma atividade na mesma compra**: são seções
   independentes na tela — dá para marcar as duas ao mesmo tempo.
 - **Homônimos**: em todas as telas de Competições (torneios e culturais),
@@ -436,8 +515,16 @@ função usada tanto para alimentar quanto para ler depois, então não tem
 risco de uma tela esperar um formato de coluna diferente do que a outra
 gravou. Se a aba não existir, a compra continua sendo salva normalmente
 — a cópia para a aba da atividade simplesmente não acontece, sem travar o
-envio nem avisar quem está atendendo (nada que desse para fazer na hora
-mesmo; se acontecer, dá para perceber olhando a planilha depois).
+envio nem avisar quem está atendendo.
+
+**Conferência automática (v3)**: a cópia roda em segundo plano, depois da
+compra, e pode se perder (um reinício ou deploy do Render bem naquela
+hora, uma falha do Google). Por isso, toda vez que um instrutor abre ou
+atualiza a lista de uma atividade, o app compara a aba `aquisicao` com a
+aba da atividade e inclui na hora quem tiver faltado. Na prática: se um
+participante chegar ao instrutor e não estiver na lista, basta atualizar
+a página. Ninguém é incluído duas vezes (a comparação é pelo
+`id_inscricao`).
 
 ## 9. Aquisição — detalhes da tela
 
@@ -482,51 +569,93 @@ mesmo; se acontecer, dá para perceber olhando a planilha depois).
   qualquer pessoa com o link. Agora ficam privados na pasta de
   `GOOGLE_DRIVE_FOLDER_ID` (ver seção 4).
 - **Quantidade**: escolhida com botões "−"/"+", sem limite máximo.
+- **Preço conferido no envio (v3)**: o celular manda junto o total que
+  mostrou na tela, e o servidor confere com os preços atuais do
+  `config.py`. Se um preço mudar no meio do evento (como aconteceu com
+  Beberrão e Rachar Lenha), quem estava com a tela aberta recebe o aviso
+  "Os preços foram atualizados", com um botão para atualizar a página — o
+  que foi preenchido volta sozinho, já com o total certo.
+- **Mesmo código, outra compra (v3)**: se um envio dá erro mas a compra
+  tinha chegado, e o atendente altera a tela e reenvia, o app não diz mais
+  "já registrada" (o que fazia a alteração se perder em silêncio): avisa
+  que aquele código já foi usado com outros dados. Se for outro cliente, o
+  botão "Registrar como nova compra" gera um código novo mantendo o que foi
+  preenchido; se o cliente mudou a compra anterior, quem resolve é a
+  Administração, com uma troca.
+- **Prazo para gravar (v3)**: o celular desiste de esperar em 60
+  segundos. Para não gravar uma compra que o atendente já acha que falhou
+  (e que ele reenviaria), o servidor nunca começa a gravar depois de 35
+  segundos: nesse caso responde que nada foi salvo e pede para enviar de
+  novo. Com foto, ela tem até 25 segundos; depois disso a compra é salva
+  com "Imagem não recebida".
 
 ## 10. Competições e Resultados
 
 A tela de Competições é organizada como a de Resultados, em **Torneios**
-e **Atividades Culturais**.
+e **Atividades Culturais**, e pede o código da equipe (seção 7).
 
 - **Arco e Flecha / Arremesso de Machado** (`/competicoes/<atividade>`):
-  lista os inscritos daquela aba, em ordem alfabética, com um emoji por
-  atividade para identificar rapidamente. Quem ainda não pontuou aparece
-  clicável — toque no nome pra abrir os quadrados de pontuação (4 tentativas no
-  Arco, 3 no Machado — **sempre números inteiros, sem casas decimais**),
-  o total soma sozinho conforme digita.
-  **Foto final do alvo (v2)**: é obrigatória, porque é a prova usada pelo
-  organizador em caso de desempate. O botão Enviar só funciona com as
-  notas e a foto; a foto vai para a pasta de `GOOGLE_DRIVE_ALVOS_FOLDER_ID`
-  e o link fica na coluna `foto_alvo`. **Se a foto não chegar ao Drive, a
-  nota não é salva** — as notas e a foto continuam na tela para tentar de
-  novo. As notas digitadas também sobrevivem se o navegador recarregar ao
-  abrir a câmera. Depois de enviado, o nome fica cinza e sem clique, com o
-  clã abaixo do nome e o total à direita. A lista não atualiza sozinha —
-  um link de "atualizar página" cobre novos inscritos chegando ao longo
-  do dia.
+  lista os inscritos daquela aba, em ordem alfabética. Quem ainda não
+  pontuou aparece clicável — toque no nome para abrir os quadrados de
+  pontuação (4 tentativas no Arco, 3 no Machado — **números inteiros de 0
+  a 10**, limite definido em `nota_maxima` no `config.py`); o total soma
+  sozinho conforme digita.
+  **Foto final do alvo**: é obrigatória, porque é a prova usada pelo
+  organizador em caso de desempate. A foto vai para a pasta de
+  `GOOGLE_DRIVE_ALVOS_FOLDER_ID` e o link fica na coluna `foto_alvo`. **Se
+  a foto não chegar ao Drive, a nota não é salva.** Um arquivo que não
+  seja foto é recusado. Depois de enviado, o nome fica cinza, com o total
+  à direita. Reenviar a mesma nota (porque a resposta se perdeu) não dá
+  erro; uma nota diferente para quem já foi pontuado é recusada.
+  **Rascunho das notas**: as notas digitadas sobrevivem se o navegador
+  recarregar ao abrir a câmera. Desde a v3, o rascunho guarda o nome da
+  pessoa e vale por 2 horas: só volta se ela ainda estiver na lista e sem
+  nota.
+- **Correção de nota (organização)**: para quem entrou com o e-mail da
+  organização ou da administração, cada nota já lançada ganha o botão
+  **Corrigir**: dá para trocar as notas (a foto continua a mesma) ou
+  **Limpar nota** (apaga notas e foto, e a pessoa volta para a lista do
+  instrutor lançar de novo; pede um segundo toque para confirmar). A
+  planilha registra quem corrigiu e quando (`alterado_por`,
+  `alterado_em`). Para o resto da equipe, a nota continua travada.
+- **Empates e desempate (Arco e Machado)**: quem tem o mesmo total fica
+  com a mesma colocação (por exemplo 1º, 2º, 3º, 3º). Quando um empate
+  vale pódio, a organização vê no topo da tela do Arco ou do Machado a
+  seção **Desempate**: depois de decidir pelas fotos dos alvos, informa a
+  ordem (1 = quem fica na frente) e salva. A ordem vai para a coluna
+  `desempate`. Se a nota de alguém do empate for corrigida, o desempate
+  dela é apagado (precisa ser decidido de novo).
 - **Swordplay, Rachar Lenha e as culturais** (`/competicoes/<atividade>`):
   lista alfabética com um campo de posição por pessoa e **um único botão
-  Enviar** no rodapé — manda a lista inteira de uma vez, mas só grava
-  quem tem posição preenchida (não sobrescreve com vazio quem já tinha).
-  **Não deixa duas pessoas ficarem com a mesma posição** — se tentar,
-  essa pessoa específica fica de fora (com aviso), enquanto o resto do
-  envio é salvo normalmente. O acompanhamento de quem enfrenta quem
-  (Swordplay) ou de cada tentativa (Rachar Lenha) é feito no papel, e nas
-  culturais quem decide continua sendo o público (voto popular em
-  Vestimenta, Bardos e Feitiços; quem bebe mais rápido no Beberrão) — a
-  regra de cada cultural aparece no topo da tela (`regra_resultado` em
-  `config.py`). O app só registra o resultado final, o que facilita a
-  premiação e os registros. Todas usam a mesma tela
-  (`competicao_ranking.html`).
-- **Resultados** (`/resultados`): só o Top 3 de cada atividade — por total
-  no Arco/Machado, por posição nas demais (incluindo as culturais, desde
-  a v2). No Arco e no Machado, cada colocado tem o botão **"Ver foto do
-  alvo"**, que abre a foto ali mesmo, sem login Google (o app busca a
-  imagem no Drive e guarda as mais recentes em memória, para abrir na
-  hora nas vezes seguintes). O telefone do competidor
-  aparece junto ao nome — os apresentadores usam pra chamar/contatar quem
-  ganhou. Isso é diferente de Competições, onde o telefone fica escondido
-  de propósito (só aparece em homônimos).
+  Enviar** no rodapé. Desde a v3:
+  - o envio leva **só as posições que mudaram** desde que a tela foi
+    aberta (o campo alterado fica destacado) — assim um celular com a
+    página antiga não desfaz o que outro instrutor salvou;
+  - **dá para trocar posições entre pessoas** (o 1º vira 2º e o 2º vira
+    1º) ou reordenar várias de uma vez: a conferência de posição repetida
+    olha o resultado final do envio;
+  - **campo apagado apaga a posição** daquela pessoa;
+  - se o resultado final tiver posição repetida, **nada é salvo** e a tela
+    diz quem ficaria com a mesma posição;
+  - tudo é gravado numa chamada só ao Google.
+  O acompanhamento de quem enfrenta quem (Swordplay) ou de cada tentativa
+  (Rachar Lenha) é feito no papel, e nas culturais quem decide continua
+  sendo o público — a regra de cada cultural aparece no topo da tela
+  (`regra_resultado` em `config.py`). O app só registra o resultado final.
+- **Resultados** (`/resultados`, aberto): o Top 3 de cada atividade.
+  - Arco e Machado: por total, com os empates marcados ("empate —
+    aguardando desempate"); depois do desempate, a ordem final ("decidido
+    no desempate"). Com empate no 3º lugar, aparecem todos os empatados.
+    Cada colocado tem o botão **"Ver foto do alvo"**, que abre a foto ali
+    mesmo, sem login Google.
+  - Demais atividades: sempre as posições 1, 2 e 3, com **"A definir"** no
+    que ainda não foi lançado (antes, se só a posição 3 estivesse lançada,
+    a pessoa aparecia como "1º").
+  - O telefone aparece junto ao nome — os apresentadores usam para chamar
+    e contatar quem ganhou.
+  - Para poupar a cota do Google (que é de 60 leituras por minuto para o
+    app inteiro), cada Top 3 fica guardado por 30 segundos: uma nota nova
+    pode levar até meio minuto para aparecer.
 
 ## 10.1. Tratamento de erros (v2)
 
@@ -536,7 +665,11 @@ definitivo" foi feito na v2:
 
 - **Falhas passageiras do Google são tentadas de novo sozinhas**
   (`tentar_google()` em `app.py`): limite de uso por minuto, instabilidade
-  ou conexão lenta ganham até 3 tentativas, com 1s e 2s de espera.
+  ou conexão lenta ganham até 3 tentativas, com 1s e 2s de espera (2s e 4s
+  quando o limite por minuto estourou). **Correção da v3**: até a v2, por
+  um detalhe na leitura do código do erro, as falhas da *planilha* nunca
+  eram reconhecidas e não eram tentadas de novo (só as do Drive e as de
+  conexão); agora são.
   Gravações que acrescentam linhas (a compra na aba `aquisicao` e a cópia
   para as abas das atividades) só são repetidas quando o Google recusou
   explicitamente — numa conexão cortada, a linha pode já ter sido gravada,
@@ -558,14 +691,103 @@ definitivo" foi feito na v2:
 - **Erro inesperado no servidor**: nas telas, aparece a página amigável de
   erro; nos envios, uma mensagem em JSON que a tela consegue mostrar.
 
+## 10.2. Administração (v3)
+
+Área só para os e-mails de `EMAIL_ADMINISTRACAO`. O cartão
+**Administração** aparece na tela inicial apenas para quem entrou com um
+desses e-mails.
+
+- **Trocar atividade**: para quem desiste de uma atividade e escolhe
+  outra, em treino ou em competição. A compra original não é alterada (no
+  treino nem dá para saber qual foi): a troca entra como um registro
+  próprio na aba `aquisicao`, com um código novo:
+  - saída: a atividade antiga, quantidade −1, valor −preço antigo, forma
+    de pagamento "Troca";
+  - entrada: a atividade nova, quantidade +1, valor +preço antigo, forma
+    "Troca";
+  - diferença (só se a nova for mais cara): quantidade 0, valor da
+    diferença, na forma de pagamento usada para completar.
+  Assim o caixa (PIX e Dinheiro) só aumenta pelo que entrou de verdade,
+  as linhas "Troca" se anulam, e a quantidade e a receita de cada
+  atividade ficam certas. Se a nova for mais barata, o valor pago passa
+  inteiro para ela, sem devolução. Na competição, a pessoa é escolhida na
+  lista de inscritos; ela sai da lista da atividade antiga (marcada como
+  `trocou`) e entra na da nova. **Quem já tem nota ou posição não pode
+  trocar.** Tocar em "Registrar" duas vezes não registra duas trocas.
+- **Resumo do evento**: a aba `resumo` da planilha, com quantidade e
+  valor por atividade e modo, total em PIX, em Dinheiro e geral, já
+  considerando as trocas. As fórmulas são do app: a aba é criada e
+  refeita sempre que a Administração abre (e uma vez depois da primeira
+  compra de cada processo). Se for apagada, volta sozinha. As fórmulas
+  são enviadas em inglês e com vírgula (é assim que a API do Google
+  recebe), e a planilha mostra traduzidas (`SOMASES`, com ponto e
+  vírgula).
+- **Preparar para arquivo**: depois do evento, antes de fazer a cópia de
+  arquivo, deixa só o DDD nos telefones de todas as abas (o DDD serve
+  para as estatísticas de público). Pede para digitar ARQUIVAR, e não dá
+  para desfazer pelo app. Roteiro sugerido: Preparar para arquivo →
+  Arquivo → Fazer uma cópia da planilha → limpar as linhas de dados da
+  planilha original, mantendo os cabeçalhos. A cópia nasce sem o
+  histórico de versões, então não guarda os telefones completos; a
+  planilha original guarda no histórico de versões dela.
+- **Correção de notas e desempates** não ficam aqui: ficam nas telas do
+  Arco e do Machado, em Competições (seção 10).
+
+## 10.3. Testes automáticos (v3)
+
+A pasta `tests/` tem testes que conferem as regras do app (código da
+equipe, nota máxima, posições, empates, trocas, compra duplicada etc.)
+usando uma planilha e um Drive **simulados** — não falam com o Google e
+não precisam de credencial nenhuma. Para rodar no seu computador:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+No GitHub, o arquivo `.github/workflows/testes.yml` roda esses testes
+sozinho a cada `push`; o resultado aparece na aba **Actions** do
+repositório (✓ verde ou ✗ vermelho).
+
 ## 11. Próximos passos possíveis (não implementados ainda)
 
-- Editar/cancelar uma compra ou nota enviada por engano.
+- Cancelar uma compra sem troca (por enquanto, desistência sem troca não
+  é registrada: como não há devolução, a compra continua valendo).
 - Reincluir "Desafio de caça ao tesouro" quando for confirmado — basta
   descomentar o bloco em `config.py`.
 
 
 ## Histórico de versões
+
+### Versão 3
+
+Preparada para o próximo evento, a partir de uma revisão completa da v2:
+
+- **Acessos**: código da equipe em Competições e Aquisição; organização e
+  administração pelo e-mail Google (seção 7).
+- **Nota máxima de 10** por tentativa no Arco e no Machado.
+- **Correção de nota** pela organização (corrigir ou limpar), com
+  registro de quem corrigiu e quando.
+- **Empates** no Top 3 do Arco e do Machado, com desempate registrado
+  pela organização; nas demais atividades, "A definir" no pódio.
+- **Posições**: trocar e reordenar de uma vez, apagar posição, enviar só o
+  que mudou e gravar tudo numa chamada só.
+- **Pessoa certa**: notas e posições são gravadas pelo código de
+  inscrição (`id_inscricao`), mesmo com a planilha reordenada.
+- **Conferência automática** das listas dos instrutores.
+- **Administração**: troca de atividade (treino e competição), aba
+  `resumo` com fórmulas prontas e preparo da planilha para arquivo (só o
+  DDD).
+- **Compra**: horário de Brasília, preço conferido no envio, aviso de
+  código reaproveitado com outros dados, prazo para gravar e valores
+  gravados como números.
+- **Correções**: novas tentativas automáticas para erros da planilha (não
+  funcionavam desde a v2), limite de 16 MB por envio, fotos conferidas
+  (arquivo que não é imagem é recusado), Top 3 guardado por 30 segundos
+  para poupar a cota do Google.
+- **Manutenção**: `pillow-heif` com versão fixa no `requirements.txt`,
+  testes automáticos, ícone "maskable" ligado no `manifest.json`, service
+  worker na raiz do site e mapa do sistema atualizado.
 
 ### Versão 2
 

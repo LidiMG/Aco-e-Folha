@@ -19,6 +19,10 @@
 
 * { box-sizing: border-box; }
 
+/* Garante que o atributo hidden sempre esconde, mesmo em elementos com
+   display definido por classe (ex.: .field, .competitor-entry). */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--color-bg);
@@ -1040,3 +1044,138 @@ input[type="file"] {
   font-size: 1.3rem;
   cursor: pointer;
 }
+
+/* --- v3: código da equipe ---------------------------------------------- */
+
+.codigo-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.codigo-form__campo {
+  text-align: center;
+  font-size: 1.4rem !important;
+  letter-spacing: 0.3em;
+}
+
+/* --- v3: tela inicial — Administração e sessão --------------------------- */
+
+.mode-card--administracao { border-left: 3px solid var(--color-primary-dark); }
+
+.home-sessao {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+  margin: -16px 16px 28px;
+}
+
+.home-sessao a { color: var(--color-ink-soft); }
+
+/* --- v3: selos, botões extras e campos ------------------------------------ */
+
+.selo {
+  display: inline-block;
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: #7A5420;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.selo--ok {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.btn-link {
+  border: none;
+  background: none;
+  padding: 4px 0 4px 8px;
+  color: var(--color-accent);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.btn--perigo {
+  color: var(--color-error);
+  border-color: var(--color-error);
+  margin-top: 0;
+}
+
+.competitor-row__footer { flex-wrap: wrap; }
+
+.ranking-row .input-posicao.input-posicao--alterada {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.select,
+input[type="tel"],
+.competitor-entry input,
+#arquivoConfirmacao,
+.codigo-form__campo {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  background: #FBFAF4;
+  color: var(--color-ink);
+}
+
+.troca-diferenca {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+}
+
+/* --- v3: desempate (organização) ------------------------------------------ */
+
+.desempate { border-color: var(--color-accent); }
+
+.desempate-grupo {
+  border-top: 1px solid var(--color-border);
+  padding-top: 12px;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.desempate-grupo__titulo {
+  margin: 0;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.desempate-grupo__linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.desempate-grupo__linha .input-ordem {
+  width: 60px;
+  text-align: center;
+  padding: 8px 4px;
+}
+
+.desempate-grupo .btn--small { align-self: flex-end; }
+
+/* --- v3: pódio com posição ainda a definir --------------------------------- */
+
+.podium-item--vazio { opacity: 0.6; }
+.podium-item--vazio .podium-item__name { font-weight: 600; font-style: italic; }

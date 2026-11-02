@@ -1,6 +1,11 @@
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/static/service-worker.js").catch(() => {
+    // v3: o service worker fica na raiz do site (antes ficava em /static/ e
+    // não cuidava de nenhuma página). O registro antigo é removido.
+    navigator.serviceWorker.getRegistrations().then((registros) => {
+      registros.forEach((r) => { if (r.scope.endsWith("/static/")) r.unregister(); });
+    }).catch(() => {});
+    navigator.serviceWorker.register("/service-worker.js").catch(() => {
       // Falha silenciosa: o app funciona normalmente mesmo sem o service worker.
     });
   });
@@ -21,6 +26,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const stepPhoto = document.getElementById("stepPhoto");
   const pagamentoGroup = document.querySelector('[data-role="pagamento"]');
   const totalValueEl = document.getElementById("totalValue");
+  const infoBanner = document.getElementById("infoBanner");
+  const atualizarPaginaBtn = document.getElementById("atualizarPaginaBtn");
+  const novaCompraBtn = document.getElementById("novaCompraBtn");
+  let totalAtual = 0; // v3: vai junto no envio, para o servidor conferir com os preços atuais
 
   // --- Código da compra (v2) ------------------------------------------------
   // Criado aqui, antes do envio, e reaproveitado em qualquer nova tentativa
@@ -72,6 +81,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (preco !== null) total += preco * quantidade;
     });
 
+    totalAtual = total;
     totalValueEl.textContent = formatBRL(total);
   }
 
@@ -250,7 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // O celular/navegador pode restaurar a tela de uma visita anterior ao
-  // voltar pro app (cache de navegação) — isso reexibe a pré-visualização
+  // voltar para o app (cache de navegação) — isso reexibe a pré-visualização
   // da última foto tirada, mas NÃO restaura o arquivo de verdade (os
   // navegadores nunca fazem isso, por segurança). Sem isso, ficava uma
   // miniatura "fantasma" na tela que o app corretamente recusava usar.
@@ -264,6 +274,9 @@ document.addEventListener("DOMContentLoaded", () => {
   function hideBanners() {
     errorBanner.hidden = true;
     successBanner.hidden = true;
+    infoBanner.hidden = true;
+    atualizarPaginaBtn.hidden = true;
+    novaCompraBtn.hidden = true;
   }
 
   function showErrors(messages) {
@@ -392,6 +405,7 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("forma_pagamento", pagamentoChecked.value);
     formData.append("activities_json", JSON.stringify(activities));
     formData.append("purchase_id", compraId);
+    formData.append("total_exibido", totalAtual.toFixed(2));
 
     try {
       const data = await window.enviarAoServidor("/submit", { method: "POST", body: formData });
@@ -406,6 +420,11 @@ document.addEventListener("DOMContentLoaded", () => {
         successBanner.scrollIntoView({ behavior: "smooth", block: "start" });
       } else {
         showErrors(data.errors || ["Erro desconhecido ao enviar. Tente novamente."]);
+        // v3: preço mudou no meio do evento -> atualizar a página (o
+        // rascunho traz tudo de volta já com os preços novos).
+        atualizarPaginaBtn.hidden = !data.precos_mudaram;
+        // v3: este código de compra já foi usado com outros dados.
+        novaCompraBtn.hidden = !data.conteudo_diferente;
       }
     } catch (err) {
       salvarRascunho(); // garante que nada se perde, seja qual for o erro
@@ -425,6 +444,22 @@ document.addEventListener("DOMContentLoaded", () => {
       submitBtn.disabled = false;
       submitBtn.textContent = "Enviar compra";
     }
+  });
+
+  atualizarPaginaBtn.addEventListener("click", () => {
+    salvarRascunho();
+    location.reload();
+  });
+
+  // Gera um código novo mantendo o que está preenchido: é para quando o
+  // atendente reaproveitou a tela para outro cliente depois de um erro.
+  novaCompraBtn.addEventListener("click", () => {
+    compraId = novoIdCompra();
+    salvarRascunho();
+    hideBanners();
+    infoBanner.textContent = "Código novo gerado. Confira os dados com o cliente e toque em Enviar compra.";
+    infoBanner.hidden = false;
+    infoBanner.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   newSubmissionBtn.addEventListener("click", () => {

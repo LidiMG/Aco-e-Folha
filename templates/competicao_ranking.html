@@ -39,10 +39,10 @@
   {% endif %}
 
   <p class="section-hint">
-    Preencha só quem já tem resultado (quem não tem posição fica de fora). Pode
-    reenviar quantas vezes precisar durante o dia —
-    <a href="javascript:location.reload()">atualize a página</a> pra ver
-    novos inscritos.
+    Preencha a posição de quem já tem resultado. Para corrigir, é só mudar
+    os números (dá para trocar posições entre pessoas) ou apagar o campo, e
+    enviar de novo. Novos inscritos aparecem ao
+    <a href="javascript:location.reload()">atualizar a página</a>.
   </p>
 
   {% if not rows %}
@@ -52,14 +52,15 @@
   <form id="rankingForm" data-key="{{ key }}">
     <div class="competitor-list">
       {% for row in rows %}
-      <div class="ranking-row" data-row="{{ row._row }}">
+      <div class="ranking-row" data-row="{{ row._row }}" data-id="{{ row.id_inscricao }}"
+           data-nome="{{ row.nome }}" data-original="{{ row.posicao }}">
         <span class="ranking-row__nameblock">
           <span class="ranking-row__name">{{ row.nome }}</span>
           <span class="ranking-row__cla">{{ row.cla }}</span>
           {% if row._duplicado %}<span class="ranking-row__telefone">{{ row.telefone }}</span>{% endif %}
         </span>
         <input type="number" class="input-posicao" inputmode="numeric" min="1" step="1"
-               placeholder="Posição" value="{{ row.posicao }}" aria-label="Posição de {{ row.nome }}">
+               placeholder="—" value="{{ row.posicao }}" aria-label="Posição de {{ row.nome }}">
       </div>
       {% endfor %}
     </div>

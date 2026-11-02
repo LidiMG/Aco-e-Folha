@@ -14,7 +14,7 @@
 
 <header class="topbar">
   <h1>Aço &amp; Folha</h1>
-  <p class="topbar__subtitle">Registro de Aquisições</p>
+  <p class="topbar__subtitle">Entrar com o Google</p>
   <p class="topbar__user">
     <a href="{{ url_for('home') }}">‹ Início</a>
   </p>
@@ -28,14 +28,14 @@
 
   <section class="card login-card">
     <p class="login-card__text">
-      Entre com a sua Conta Google para registrar uma compra.
-      Isso identifica quem fez cada transação.
+      Entre com a sua Conta Google. Na Aquisição, isso identifica quem
+      registrou cada compra; para a organização, libera as funções extras.
     </p>
 
     {% if google_client_id %}
     <div id="g_id_onload"
          data-client_id="{{ google_client_id }}"
-         data-login_uri="{{ request.url_root }}auth/google{% if next %}?next={{ next }}{% endif %}"
+         data-login_uri="{{ request.url_root }}auth/google{% if next %}?next={{ next | urlencode }}{% endif %}"
          data-auto_prompt="false">
     </div>
     <div class="g_id_signin"

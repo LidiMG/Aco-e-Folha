@@ -6,3 +6,6 @@ google-api-python-client==2.140.0
 python-dotenv==1.0.1
 Pillow==12.3.0
 gunicorn==22.0.0
+# Fotos .heic de iPhone. Só no Linux (Render): no Windows ele exige compilar
+# C++ e trava a instalação, então lá ele é pulado automaticamente.
+pillow-heif==1.8.0; sys_platform == "linux"

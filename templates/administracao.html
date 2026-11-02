@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Administração — Aço &amp; Folha</title>
+<meta name="theme-color" content="#3B5D42">
+<link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>Administração</h1>
+  <p class="topbar__subtitle">Aço &amp; Folha</p>
+  <p class="topbar__user">
+    <a href="{{ url_for('home') }}">‹ Início</a> · {{ user_name }} · <a href="{{ url_for('logout') }}">Sair</a>
+  </p>
+</header>
+
+<main class="wrap">
+
+  <div id="errorBanner" class="banner banner--error" hidden>
+    <ul id="errorList"></ul>
+  </div>
+  <div id="successBanner" class="banner banner--success" hidden></div>
+
+  <!-- ===================== Troca de atividade ===================== -->
+  <h2 class="section-title">Trocar atividade</h2>
+  <p class="section-hint">
+    Para quem desiste de uma atividade e escolhe outra. A compra original
+    não é alterada: a troca entra como um registro próprio na aba
+    aquisicao. Se a nova atividade for mais cara, o cliente completa a
+    diferença; se for mais barata, não há devolução.
+  </p>
+
+  <form id="trocaForm" class="card" novalidate>
+    <div class="field">
+      <label class="field__label" for="saiAtividade">Sai de</label>
+      <select id="saiAtividade" class="select">
+        <option value="">Escolha a atividade…</option>
+        {% for a in atividades %}
+        <option value="{{ loop.index0 }}">{{ a.rotulo }}{% if a.preco is not none %} ({{ "R$ %.2f" | format(a.preco) | replace(".", ",") }}){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field" id="saiPessoaCampo" hidden>
+      <label class="field__label" for="saiPessoa">Quem está trocando</label>
+      <select id="saiPessoa" class="select"></select>
+      <p class="section-hint" id="saiPessoaDica"></p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="entraAtividade">Entra em</label>
+      <select id="entraAtividade" class="select">
+        <option value="">Escolha a atividade…</option>
+        {% for a in atividades %}
+        <option value="{{ loop.index0 }}">{{ a.rotulo }}{% if a.preco is not none %} ({{ "R$ %.2f" | format(a.preco) | replace(".", ",") }}){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field competitor-entry" id="entraPessoaCampo" hidden>
+      <span class="field__label">Quem entra na competição</span>
+      <input type="text" id="entraNome" class="input-competidor-nome" placeholder="Nome">
+      <input type="tel" id="entraTelefone" class="input-competidor-telefone" inputmode="tel" placeholder="Telefone com DDD">
+      <input type="text" id="entraCla" class="input-competidor-cla" placeholder="Clã (opcional)">
+    </div>
+
+    <div class="field" id="diferencaCampo" hidden>
+      <p class="troca-diferenca" id="diferencaTexto"></p>
+      <div class="pill-group" id="formaDiferenca">
+        {% for opt in payment_options %}
+        <label class="pill">
+          <input type="radio" name="forma_diferenca" value="{{ opt }}">
+          <span>{{ opt }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <p class="section-hint" id="semDevolucao" hidden>A nova atividade é mais barata: o valor pago passa inteiro para ela, sem devolução.</p>
+
+    <button type="submit" id="trocaBtn" class="btn btn--primary">Registrar troca</button>
+  </form>
+
+  <!-- ===================== Notas e desempates ===================== -->
+  <h2 class="section-title">Notas e desempates</h2>
+  <p class="section-hint">
+    Ficam nas telas do Arco e Flecha e do Arremesso de Machado, em
+    <a href="{{ url_for('competicoes') }}">Competições</a>: para quem entra
+    com o e-mail da organização ou da administração, cada nota já lançada
+    ganha o botão “Corrigir”, e os empates do pódio aparecem no topo da
+    tela para registrar o desempate.
+  </p>
+
+  <!-- ===================== Resumo ===================== -->
+  <h2 class="section-title">Resumo do evento</h2>
+  {% if aviso_resumo %}
+  <div class="banner banner--error">{{ aviso_resumo }}</div>
+  {% else %}
+  <p class="section-hint">
+    A aba <strong>resumo</strong> da planilha acabou de ser atualizada:
+    quantidade e valor por atividade, total em PIX, em Dinheiro e geral.
+    As fórmulas são do app — se a aba for apagada, ela volta na próxima
+    vez que esta página abrir.
+  </p>
+  {% endif %}
+
+  <!-- ===================== Preparar para arquivo ===================== -->
+  <h2 class="section-title">Preparar para arquivo</h2>
+  <p class="section-hint">
+    Use depois do evento, antes de fazer a cópia de arquivo da planilha:
+    os telefones completos são apagados em todas as abas e fica só o DDD.
+    <strong>Não dá para desfazer pelo app.</strong>
+  </p>
+  <form id="arquivoForm" class="card" novalidate>
+    <div class="field">
+      <label class="field__label" for="arquivoConfirmacao">Digite ARQUIVAR para confirmar</label>
+      <input type="text" id="arquivoConfirmacao" autocomplete="off" autocapitalize="characters">
+    </div>
+    <button type="submit" id="arquivoBtn" class="btn btn--primary">Deixar só o DDD</button>
+  </form>
+
+</main>
+
+<script>window.ATIVIDADES_ADMIN = {{ atividades | tojson }};</script>
+<script src="{{ url_for('static', filename='rede.js') }}"></script>
+<script src="{{ url_for('static', filename='admin.js') }}"></script>
+</body>
+</html>
