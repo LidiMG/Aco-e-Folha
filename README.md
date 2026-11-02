@@ -371,7 +371,7 @@ porta para quem só recebeu o link por acaso:
 | Equipe (atendimento e instrutores) | **Código da equipe**, digitado uma vez por celular (vale 7 dias) | Lançar notas e posições; na Aquisição, registrar compras (com login Google) |
 | Organização | **Login Google** com o e-mail de `EMAIL_ORGANIZACAO` (sem código) | Tudo da equipe, mais corrigir notas e registrar desempates |
 | Administração | **Login Google** com o e-mail de `EMAIL_ADMINISTRACAO` (sem código) | Tudo da organização, mais a área de Administração |
-| Qualquer pessoa | — | Ver Resultados |
+| Qualquer pessoa | — | Ver Resultados (telefones do pódio mascarados) |
 
 - **Código da equipe** (`CODIGO_EQUIPE`): use só números (4 a 6). Troque a
   cada evento no painel do Render; quando ele muda, todos os celulares
@@ -659,7 +659,10 @@ e **Atividades Culturais**, e pede o código da equipe (seção 7).
     que ainda não foi lançado (antes, se só a posição 3 estivesse lançada,
     a pessoa aparecia como "1º").
   - O telefone aparece junto ao nome — os apresentadores usam para chamar
-    e contatar quem ganhou.
+    e contatar quem ganhou. **Completo só para quem tem o código da equipe
+    ou entrou como organização ou administração**; para o público, aparecem
+    só os quatro últimos dígitos (`•••••-8888`), com um link para digitar
+    o código.
   - Para poupar a cota do Google (que é de 60 leituras por minuto para o
     app inteiro), cada Top 3 fica guardado por 30 segundos: uma nota nova
     pode levar até meio minuto para aparecer.
@@ -798,6 +801,8 @@ Preparada para o próximo evento, a partir de uma revisão completa da v2:
   `resumo` com fórmulas prontas e preparo da planilha para arquivo (só o
   DDD).
 - **Resumo do evento no app**, na Administração.
+- **Telefones do pódio mascarados** para o público (•••••-8888); completos
+  só para a equipe, a organização e a administração.
 - **Velocidade**: a lista do instrutor faz as duas leituras ao mesmo
   tempo, a compra com foto faz uma conferência a menos, a autorização do
   Drive é renovada uma vez só por processo e a Administração abre sem

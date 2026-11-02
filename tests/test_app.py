@@ -557,3 +557,11 @@ def test_valor_da_planilha_entende_texto_em_reais():
     assert aplicativo._valor_da_planilha("-R$ 10,00") == -10.0
     assert aplicativo._valor_da_planilha(30) == 30.0
     assert aplicativo._valor_da_planilha("") == 0.0
+
+
+def test_telefone_do_podio_so_aparece_completo_para_a_equipe(planilha, anonimo, equipe, organizacao):
+    preencher(planilha, "swordplay", [{"nome": "Ana", "telefone": "51999998888", "posicao": 1, "id_inscricao": "t1-1"}])
+    publico = anonimo.get("/resultados/swordplay").get_data(as_text=True)
+    assert "51999998888" not in publico and "•••••-8888" in publico and "digitar o código" in publico
+    assert "51999998888" in equipe.get("/resultados/swordplay").get_data(as_text=True)
+    assert "51999998888" in organizacao.get("/resultados/swordplay").get_data(as_text=True)

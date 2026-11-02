@@ -206,6 +206,12 @@ def login_required(view_func):
     return wrapped
 
 
+def mascarar_telefone(telefone):
+    """Telefone para o público (v3): só os 4 últimos dígitos (•••••-8888)."""
+    digitos = "".join(ch for ch in str(telefone or "") if ch.isdigit())
+    return f"•••••-{digitos[-4:]}" if len(digitos) >= 4 else ""
+
+
 @app.context_processor
 def contexto_de_acesso():
     papel = papel_atual()
@@ -213,6 +219,7 @@ def contexto_de_acesso():
         "papel": papel,
         "eh_organizacao": papel in ("organizacao", "administracao"),
         "eh_administracao": papel == "administracao",
+        "mascarar_telefone": mascarar_telefone,
     }
 
 

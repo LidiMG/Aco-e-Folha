@@ -33,6 +33,10 @@
   <p class="section-hint">
     Novas notas e posições aparecem em até 30 segundos —
     <a href="javascript:location.reload()">recarregue a página</a> para ver o mais recente.
+    {% if not papel and cfg.collects_competitor_names %}
+    Os telefones aparecem completos só para a equipe:
+    <a href="{{ url_for('entrar_equipe', next=request.path) }}">digitar o código</a>.
+    {% endif %}
   </p>
 
   {% if not podio %}
@@ -52,7 +56,8 @@
       <span class="podium-item__place">{{ row._posicao }}º</span>
       <span class="podium-item__nameblock">
         <span class="podium-item__name">{{ row.nome }}</span>
-        <span class="podium-item__meta">{{ row.cla }}{% if row.cla and row.telefone %} · {% endif %}{{ row.telefone }}</span>
+        {# v3: telefone completo só para quem tem o código da equipe ou é da organização #}
+        <span class="podium-item__meta">{{ row.cla }}{% if row.cla and row.telefone %} · {% endif %}{% if papel %}{{ row.telefone }}{% else %}{{ mascarar_telefone(row.telefone) }}{% endif %}</span>
         {% if row._empate %}<span class="selo">empate — aguardando desempate</span>{% endif %}
         {% if row._desempatado %}<span class="selo selo--ok">decidido no desempate</span>{% endif %}
         {% if row._foto_id %}
