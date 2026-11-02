@@ -1932,6 +1932,7 @@ def administracao():
         payment_options=PAYMENT_OPTIONS,
         user_name=session.get("user_name"),
         dados=resumo_dados,
+        abrir_resumo=bool(request.args.get("atualizar")),
         erro_resumo=erro_resumo,
         format_brl=format_brl,
     )

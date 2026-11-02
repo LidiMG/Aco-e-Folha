@@ -728,7 +728,8 @@ desses e-mails.
   trocas.
 - **Resumo do evento**: os totais aparecem em dois lugares, com os mesmos
   números, já considerando as trocas:
-  - no app, no topo da Administração: total do evento, PIX, Dinheiro,
+  - no app, na Administração, no botão **Ver resumo do evento** (logo
+    abaixo de Trocar atividade, abre e fecha na própria tela): total do evento, PIX, Dinheiro,
     número de compras e de trocas, e quantidade e valor de cada
     atividade. É calculado na hora a partir da aba `aquisicao` (com até 30
     segundos de atraso; o link "atualizar agora" busca o mais recente);
@@ -796,7 +797,7 @@ Preparada para o próximo evento, a partir de uma revisão completa da v2:
 - **Administração**: troca de atividade (treino e competição), aba
   `resumo` com fórmulas prontas e preparo da planilha para arquivo (só o
   DDD).
-- **Resumo do evento no app**, no topo da Administração.
+- **Resumo do evento no app**, na Administração.
 - **Velocidade**: a lista do instrutor faz as duas leituras ao mesmo
   tempo, a compra com foto faz uma conferência a menos, a autorização do
   Drive é renovada uma vez só por processo e a Administração abre sem
