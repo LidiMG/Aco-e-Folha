@@ -80,6 +80,14 @@
         </label>
         {% endfor %}
       </div>
+      <div class="alvo-foto troca-foto" id="trocaFotoCampo" hidden>
+        <label class="alvo-foto__botao">
+          <span aria-hidden="true">📷</span>
+          <span class="alvo-foto__texto" id="trocaFotoTexto">Tirar foto do comprovante (opcional)</span>
+          <input type="file" id="trocaFoto" accept="image/*" capture="environment" hidden>
+        </label>
+        <img class="alvo-foto__preview" id="trocaFotoPreview" hidden alt="Pré-visualização do comprovante">
+      </div>
     </div>
     <p class="section-hint" id="semDevolucao" hidden>A nova atividade é mais barata: o valor pago passa inteiro para ela, sem devolução.</p>
 
@@ -89,11 +97,12 @@
   <!-- ===================== Notas e desempates ===================== -->
   <h2 class="section-title">Notas e desempates</h2>
   <p class="section-hint">
-    Ficam nas telas do Arco e Flecha e do Arremesso de Machado, em
-    <a href="{{ url_for('competicoes') }}">Competições</a>: para quem entra
-    com o e-mail da organização ou da administração, cada nota já lançada
-    ganha o botão “Corrigir”, e os empates do pódio aparecem no topo da
-    tela para registrar o desempate.
+    Para quem entra com o e-mail da organização ou da administração: a
+    correção de notas fica nas telas do Arco e Flecha e do Arremesso de
+    Machado, em <a href="{{ url_for('competicoes') }}">Competições</a>
+    (botão “Corrigir”); o desempate fica em
+    <a href="{{ url_for('resultados') }}">Resultados</a>, junto das fotos
+    dos alvos, quando houver empate no pódio.
   </p>
 
   <!-- ===================== Resumo ===================== -->
@@ -128,6 +137,7 @@
 
 <script>window.ATIVIDADES_ADMIN = {{ atividades | tojson }};</script>
 <script src="{{ url_for('static', filename='rede.js') }}"></script>
+<script src="{{ url_for('static', filename='fotos.js') }}"></script>
 <script src="{{ url_for('static', filename='admin.js') }}"></script>
 </body>
 </html>

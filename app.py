@@ -831,10 +831,12 @@ def tarefas_depois_da_compra(inscricoes_por_atividade):
 # Aba "resumo" (v3) — fórmulas prontas, recriadas pelo próprio app
 # ---------------------------------------------------------------------------
 
-def montar_resumo():
-    """Conteúdo da aba resumo. As fórmulas vão em inglês e com vírgula:
-    é assim que a API do Google recebe fórmulas; na planilha elas aparecem
-    traduzidas para o idioma dela (SOMASES, com ponto e vírgula)."""
+def montar_resumo(sep=";"):
+    """Conteúdo da aba resumo. As funções vão com o nome em inglês (o Google
+    aceita em qualquer idioma e mostra traduzido: SOMASES), mas o separador
+    dos argumentos precisa ser o do idioma da planilha: ";" em português,
+    "," em inglês. Na v3 inicial ia sempre ",", e numa planilha em português
+    dava "erro de análise de fórmula"."""
     aba = f"{NOME_ABA_AQUISICAO}!"
 
     def col(nome):
@@ -851,12 +853,12 @@ def montar_resumo():
     for cfg in ACTIVITIES.values():
         modos = MODE_OPTIONS if cfg["has_mode"] else [cfg["fixed_mode"]]
         for m in modos:
-            criterio = f'{atividade},"{cfg["label"]}",{modo},"{m}"'
-            linhas.append([cfg["label"], m, f"=SUMIFS({quantidade},{criterio})", f"=SUMIFS({total},{criterio})"])
+            criterio = f'{atividade}{sep}"{cfg["label"]}"{sep}{modo}{sep}"{m}"'
+            linhas.append([cfg["label"], m, f"=SUMIFS({quantidade}{sep}{criterio})", f"=SUMIFS({total}{sep}{criterio})"])
     linhas.append(["", "", "", ""])
     linhas.append(["Forma de pagamento", "", "", "Valor"])
     for f in PAYMENT_OPTIONS:
-        linhas.append([f, "", "", f'=SUMIF({forma},"{f}",{total})'])
+        linhas.append([f, "", "", f'=SUMIF({forma}{sep}"{f}"{sep}{total})'])
     linhas.append(["Total geral", "", "", f"=SUM({total})"])
     linhas.append(["", "", "", ""])
     linhas.append([
@@ -875,9 +877,18 @@ def garantir_resumo():
         ws = tentar_google(sh.worksheet, NOME_ABA_RESUMO)
     except gspread.exceptions.WorksheetNotFound:
         ws = tentar_google(sh.add_worksheet, title=NOME_ABA_RESUMO, rows=80, cols=6)
-    valores = montar_resumo()
-    tentar_google(ws.clear)
-    tentar_google(ws.update, "A1", valores, value_input_option="USER_ENTERED")
+    # Idiomas que usam vírgula como separador de argumentos (ponto decimal);
+    # os demais (português, espanhol, francês...) usam ponto e vírgula.
+    idioma = (getattr(sh, "locale", "") or "").split("_")[0].lower()
+    virgula = idioma in {"en", "ja", "zh", "ko", "th", "he", "iw", "hi", "ms", "fil", "tl"}
+    for sep in ([",", ";"] if virgula else [";", ","]):
+        valores = montar_resumo(sep)
+        tentar_google(ws.clear)
+        tentar_google(ws.update, "A1", valores, value_input_option="USER_ENTERED")
+        # Confere se o Google entendeu a fórmula; se não, tenta o outro separador.
+        conferencia = tentar_google(ws.acell, "C3").value or ""
+        if not str(conferencia).startswith("#"):
+            break
     tentar_google(ws.format, f"D3:D{len(valores)}", FORMATO_MOEDA)
 
 
@@ -1265,9 +1276,6 @@ def competicao_pontuar(key):
         erro = mensagem_amigavel(exc, "carregar a lista de inscritos")
 
     if cfg.get("num_tiros"):
-        empates = []
-        if papel_atual() in ("organizacao", "administracao"):
-            empates = grupos_de_empate(classificar_por_total(list(rows)))
         for r in rows:
             r["_tiros"] = [r.get(f"tiro{i}", "") for i in range(1, cfg["num_tiros"] + 1)]
         return render_template(
@@ -1276,7 +1284,6 @@ def competicao_pontuar(key):
             key=key,
             rows=rows,
             tiro_indices=list(range(1, cfg["num_tiros"] + 1)),
-            empates=empates,
             erro=erro,
         )
 
@@ -1603,23 +1610,33 @@ def resultado_atividade(key):
     with _trava_cache_resultados:
         guardado = _cache_resultados.get(key)
     if guardado and time.time() - guardado[0] < VALIDADE_CACHE_RESULTADOS_S:
-        podio = guardado[1]
+        podio, empates = guardado[1], guardado[2]
     else:
         try:
             rows = linhas_validas(read_modality_rows(cfg["sheet_name"], sheet_headers_for(key, cfg)))
         except Exception as exc:  # noqa: BLE001
-            return render_template("resultado_torneio.html", cfg=cfg, podio=[],
+            return render_template("resultado_torneio.html", cfg=cfg, key=key, podio=[], empates=[],
                                    erro=mensagem_amigavel(exc, "carregar os resultados"))
+        empates = []
         if cfg.get("num_tiros"):
-            podio = [r for r in classificar_por_total(rows) if r["_posicao"] <= 3]
-            for r in podio:
+            classificados = classificar_por_total(rows)
+            for r in classificados:
                 r["_foto_id"] = id_da_foto(r.get("foto_alvo"))
+            podio = [r for r in classificados if r["_posicao"] <= 3]
+            # Empates que valem pódio (resolvidos ou não) — com todos os
+            # integrantes, mesmo quem ficou em 4º depois do desempate, para
+            # a organização poder refazer a ordem se precisar.
+            empates = grupos_de_empate(classificados)
         else:
             podio = podio_por_posicao(rows)
         with _trava_cache_resultados:
-            _cache_resultados[key] = (time.time(), podio)
+            _cache_resultados[key] = (time.time(), podio, empates)
 
-    return render_template("resultado_torneio.html", cfg=cfg, podio=podio, erro=None)
+    # v3: o desempate é feito aqui, em Resultados, onde estão as fotos dos
+    # alvos — e só aparece para a organização e a administração.
+    if papel_atual() not in ("organizacao", "administracao"):
+        empates = []
+    return render_template("resultado_torneio.html", cfg=cfg, key=key, podio=podio, empates=empates, erro=None)
 
 
 # --- Fotos dos alvos em Resultados ------------------------------------------
@@ -1927,7 +1944,15 @@ def administracao_troca():
     "trocou", não é apagada) e entra na lista da nova."""
     from gspread.utils import rowcol_to_a1
 
-    payload = request.get_json(silent=True) or {}
+    # Vem como formulário (multipart), porque pode trazer a foto do
+    # comprovante do PIX da diferença; os dados vão no campo "dados".
+    try:
+        payload = json.loads(request.form.get("dados") or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    foto = request.files.get("foto")
     sai = payload.get("sai") if isinstance(payload.get("sai"), dict) else {}
     entra = payload.get("entra") if isinstance(payload.get("entra"), dict) else {}
 
@@ -1981,6 +2006,22 @@ def administracao_troca():
     forma_diferenca = payload.get("forma_diferenca")
     if diferenca > 0 and forma_diferenca not in PAYMENT_OPTIONS:
         erros.append(f"A nova atividade é {format_brl(diferenca)} mais cara: informe como a diferença foi paga.")
+
+    # No treino não dá para saber qual compra foi trocada, mas dá para
+    # conferir se ainda existe alguma: o saldo (compras menos trocas já
+    # feitas) daquela atividade e modo precisa ser maior que zero.
+    if not sai_comp and not erros:
+        try:
+            esquecer_cache_aquisicao()
+            saldo = sum(
+                _inteiro(l["quantidade"]) or 0 for l in linhas_da_aquisicao()
+                if l["atividade"] == sai_cfg["label"] and l["modo"] == sai_modo
+            )
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"ok": False, "errors": [mensagem_amigavel(exc, "conferir as compras")]}), 502
+        if saldo <= 0:
+            erros.append(f"Não há compra de {sai_cfg['label']} ({sai_modo}) disponível para trocar: "
+                         "todas as que foram registradas já foram trocadas (ou nenhuma foi registrada).")
     if erros:
         return jsonify({"ok": False, "errors": erros}), 400
 
@@ -2025,11 +2066,21 @@ def administracao_troca():
             atividade=entra_cfg["label"], modo=entra_modo, quantidade=0,
             valor_unitario="", valor_total=_valor(diferenca), forma_pagamento=forma_diferenca,
         ))
+    indice_diferenca = len(linhas) - 1 if diferenca > 0 else None
 
     try:
         ws = get_worksheet()
         if compra_existente(id_troca, ws) is not None:
             return jsonify({"ok": True, "id_troca": id_troca, "ja_registrada": True, "avisos": []})
+        # Comprovante do PIX da diferença: opcional, como na Aquisição. Se
+        # não chegar ao Drive, a troca é salva com "Imagem não recebida".
+        if indice_diferenca is not None and forma_diferenca == "PIX" and foto and foto.filename:
+            try:
+                link = upload_photo_to_drive(foto, f"{id_troca}_diferenca", folder_id=DRIVE_FOLDER_ID)
+            except Exception as exc:  # noqa: BLE001
+                link = "Imagem não recebida"
+                app.logger.error("Comprovante da troca %s não chegou ao Drive: %r", id_troca, exc)
+            linhas[indice_diferenca][SHEET_HEADERS.index("link_foto")] = link
         tentar_google(ws.append_rows, linhas, value_input_option="USER_ENTERED", repetivel=False)
     except Exception as exc:  # noqa: BLE001
         return jsonify({"ok": False, "errors": [

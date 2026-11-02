@@ -38,6 +38,8 @@ class AbaFalsa:
     """Imita o pedaço do gspread.Worksheet que o app usa. Conta as
     chamadas, para os testes conferirem quantas idas ao Google houve."""
 
+    idioma = "pt_BR"
+
     def __init__(self, titulo, linhas=()):
         self.title = titulo
         self.dados = [list(l) for l in linhas]
@@ -119,11 +121,30 @@ class AbaFalsa:
     def format(self, faixa, formato):
         pass
 
+    def acell(self, celula):
+        """Imita o cálculo da fórmula: com o separador errado para o idioma
+        da planilha, o Google mostra #ERROR! (erro de análise de fórmula)."""
+        self.leituras += 1
+        linha, coluna = gspread.utils.a1_to_rowcol(celula)
+        valor = self.dados[linha - 1][coluna - 1] if linha <= len(self.dados) else ""
+        if isinstance(valor, str) and valor.startswith("="):
+            separador_certo = "," if self.idioma.startswith("en") else ";"
+            separador_errado = ";" if separador_certo == "," else ","
+            valor = "#ERROR!" if separador_errado in valor else "0"
+
+        class Celula:
+            pass
+        c = Celula()
+        c.value = valor
+        return c
+
     def clear(self):
         self.dados = []
 
 
 class PlanilhaFalsa:
+    locale = "pt_BR"
+
     def __init__(self):
         self.abas = {}
 

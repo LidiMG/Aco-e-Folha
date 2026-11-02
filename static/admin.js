@@ -58,6 +58,37 @@ document.addEventListener("DOMContentLoaded", () => {
   const diferencaTexto = document.getElementById("diferencaTexto");
   const semDevolucao = document.getElementById("semDevolucao");
   const trocaBtn = document.getElementById("trocaBtn");
+  const trocaFotoCampo = document.getElementById("trocaFotoCampo");
+  const trocaFoto = document.getElementById("trocaFoto");
+  const trocaFotoTexto = document.getElementById("trocaFotoTexto");
+  const trocaFotoPreview = document.getElementById("trocaFotoPreview");
+
+  // Foto do comprovante do PIX da diferença (opcional, como na Aquisição).
+  function formaEscolhida() {
+    const marcada = document.querySelector("#formaDiferenca input:checked");
+    return marcada ? marcada.value : null;
+  }
+
+  function atualizarFoto() {
+    trocaFotoCampo.hidden = diferencaCampo.hidden || formaEscolhida() !== "PIX";
+  }
+
+  function limparFoto() {
+    trocaFoto.value = "";
+    trocaFoto._fotoPronta = null;
+    trocaFotoPreview.hidden = true;
+    trocaFotoTexto.textContent = "Tirar foto do comprovante (opcional)";
+  }
+
+  document.querySelectorAll("#formaDiferenca input").forEach((r) => r.addEventListener("change", atualizarFoto));
+  trocaFoto.addEventListener("change", () => {
+    window.prepararFoto(trocaFoto);
+    const arquivo = trocaFoto.files[0];
+    if (!arquivo) return;
+    trocaFotoPreview.src = URL.createObjectURL(arquivo);
+    trocaFotoPreview.hidden = false;
+    trocaFotoTexto.textContent = "Trocar foto do comprovante";
+  });
 
   // Um código por troca, reaproveitado em nova tentativa (não duplica).
   let idTroca = novoId();
@@ -84,6 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
     diferencaCampo.hidden = !(sai && entra && diferenca > 0);
     semDevolucao.hidden = !(sai && entra && diferenca < 0);
     if (diferenca > 0) diferencaTexto.textContent = `Diferença a pagar: ${formatBRL(diferenca)}. Como foi paga?`;
+    atualizarFoto();
   }
 
   async function carregarInscritos() {
@@ -146,7 +178,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (entra && entra.competicao && (!entraNome.value.trim() || !entraTelefone.value.trim())) {
       erros.push("Informe nome e telefone com DDD de quem entra na competição.");
     }
-    const forma = document.querySelector('#formaDiferenca input:checked');
+    const forma = document.querySelector("#formaDiferenca input:checked");
     if (!diferencaCampo.hidden && !forma) erros.push("Informe como a diferença foi paga.");
     if (erros.length) {
       mostrarErros(erros);
@@ -164,16 +196,20 @@ document.addEventListener("DOMContentLoaded", () => {
     trocaBtn.disabled = true;
     trocaBtn.textContent = "Registrando...";
     try {
-      const dados = await window.enviarAoServidor("/administracao/troca", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(corpo),
-      });
+      const formData = new FormData();
+      formData.append("dados", JSON.stringify(corpo));
+      if (!trocaFotoCampo.hidden && trocaFoto.files[0]) {
+        trocaBtn.textContent = "Preparando foto...";
+        formData.append("foto", await window.fotoPronta(trocaFoto));
+        trocaBtn.textContent = "Registrando...";
+      }
+      const dados = await window.enviarAoServidor("/administracao/troca", { method: "POST", body: formData });
       if (dados.ok) {
         const avisos = dados.avisos && dados.avisos.length ? ` Atenção: ${dados.avisos.join(" ")}` : "";
         mostrarSucesso(`Troca registrada (código ${dados.id_troca}).${avisos}`);
         idTroca = novoId();
         trocaForm.reset();
+        limparFoto();
         inscritos = [];
         saiPessoa.innerHTML = "";
         saiPessoaCampo.hidden = true;

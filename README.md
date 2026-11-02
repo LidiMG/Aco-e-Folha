@@ -38,10 +38,11 @@ administração):
   quadrados de pontuação (de 0 a 10) mais a foto final do alvo
   (obrigatória) para Arco e Flecha/Arremesso de Machado, e a posição final
   no ranking para Swordplay, Rachar Lenha e todas as culturais. A
-  organização também corrige notas e registra desempates por aqui.
+  organização também corrige notas por aqui.
 - **Resultados** (`/resultados`, aberto) — o Top 3 de cada torneio e de
   cada atividade cultural, calculado automaticamente a partir do que foi
-  lançado em Competições, com os empates indicados.
+  lançado em Competições, com os empates indicados. É aqui, junto das
+  fotos dos alvos, que a organização registra os desempates.
 - **Administração** (`/administracao`, só para o e-mail da administração)
   — trocas de atividade, aba de resumo da planilha e o preparo da
   planilha para arquivo depois do evento (seção 10.2).
@@ -81,7 +82,7 @@ evento-app/
 │   ├── competicao_pontuar.html   # Lançamento de notas (Arco/Machado)
 │   ├── competicao_ranking.html   # Lançamento de posição (Swordplay, Rachar Lenha, culturais)
 │   ├── resultados_hub.html       # Hub de Resultados
-│   ├── resultado_torneio.html    # Top 3 de cada atividade (torneios e culturais)
+│   ├── resultado_torneio.html    # Top 3 de cada atividade + desempate (organização)
 │   ├── privacidade.html          # Política de Privacidade (link p/ OAuth em produção)
 │   ├── termos.html                # Termos de Serviço (idem)
 │   ├── erro.html                  # Página 404/500 amigável (rede de segurança geral)
@@ -93,6 +94,7 @@ evento-app/
     ├── rede.js                   # Envio ao servidor com tratamento de erros (v2)
     ├── competicoes.js            # Lógica das telas de Competições
     ├── admin.js                  # Lógica da Administração (v3)
+    ├── resultados.js             # Desempate em Resultados (v3)
     ├── manifest.json
     ├── service-worker.js         # Servido na raiz do site, em /service-worker.js (v3)
     ├── icon-192.png / icon-512.png             # ícone "any" (iPhone/Windows/Mac)
@@ -619,12 +621,17 @@ e **Atividades Culturais**, e pede o código da equipe (seção 7).
   planilha registra quem corrigiu e quando (`alterado_por`,
   `alterado_em`). Para o resto da equipe, a nota continua travada.
 - **Empates e desempate (Arco e Machado)**: quem tem o mesmo total fica
-  com a mesma colocação (por exemplo 1º, 2º, 3º, 3º). Quando um empate
-  vale pódio, a organização vê no topo da tela do Arco ou do Machado a
-  seção **Desempate**: depois de decidir pelas fotos dos alvos, informa a
-  ordem (1 = quem fica na frente) e salva. A ordem vai para a coluna
-  `desempate`. Se a nota de alguém do empate for corrigida, o desempate
-  dela é apagado (precisa ser decidido de novo).
+  com a mesma colocação (por exemplo 1º, 2º, 3º, 3º). O desempate só
+  importa para o pódio, e só no fim da competição, por isso fica em
+  **Resultados**: para quem entrou como organização ou administração,
+  quando um empate vale pódio aparece, abaixo do Top 3, a seção
+  **Desempate**, com a foto do alvo de cada empatado (toque para ampliar)
+  e um campo de ordem (1 = quem fica na frente). A ordem vai para a coluna
+  `desempate`, e o pódio passa a mostrar a ordem final. Dá para refazer:
+  a seção continua aparecendo, com todos do empate (mesmo quem ficou em 4º
+  depois do desempate). Se a nota de alguém do empate for corrigida, o
+  desempate dela é apagado (precisa ser decidido de novo). Para o público
+  e a equipe, Resultados não mostra essa seção.
 - **Swordplay, Rachar Lenha e as culturais** (`/competicoes/<atividade>`):
   lista alfabética com um campo de posição por pessoa e **um único botão
   Enviar** no rodapé. Desde a v3:
@@ -706,22 +713,27 @@ desses e-mails.
   - entrada: a atividade nova, quantidade +1, valor +preço antigo, forma
     "Troca";
   - diferença (só se a nova for mais cara): quantidade 0, valor da
-    diferença, na forma de pagamento usada para completar.
+    diferença, na forma de pagamento usada para completar. Se for PIX, dá
+    para tirar a foto do comprovante (opcional, como na Aquisição); ela vai
+    para a pasta dos comprovantes e o link fica em `link_foto`.
   Assim o caixa (PIX e Dinheiro) só aumenta pelo que entrou de verdade,
   as linhas "Troca" se anulam, e a quantidade e a receita de cada
   atividade ficam certas. Se a nova for mais barata, o valor pago passa
   inteiro para ela, sem devolução. Na competição, a pessoa é escolhida na
   lista de inscritos; ela sai da lista da atividade antiga (marcada como
   `trocou`) e entra na da nova. **Quem já tem nota ou posição não pode
-  trocar.** Tocar em "Registrar" duas vezes não registra duas trocas.
+  trocar.** No treino, o app confere se ainda existe compra daquela
+  atividade e modo para trocar (as compras menos as trocas já feitas); se
+  não existir, recusa. Tocar em "Registrar" duas vezes não registra duas
+  trocas.
 - **Resumo do evento**: a aba `resumo` da planilha, com quantidade e
   valor por atividade e modo, total em PIX, em Dinheiro e geral, já
   considerando as trocas. As fórmulas são do app: a aba é criada e
   refeita sempre que a Administração abre (e uma vez depois da primeira
-  compra de cada processo). Se for apagada, volta sozinha. As fórmulas
-  são enviadas em inglês e com vírgula (é assim que a API do Google
-  recebe), e a planilha mostra traduzidas (`SOMASES`, com ponto e
-  vírgula).
+  compra de cada processo). Se for apagada, volta sozinha. As funções vão
+  com o nome em inglês (a planilha mostra traduzido: `SOMASES`) e com o
+  separador do idioma da planilha (ponto e vírgula em português); o app
+  confere se o Google entendeu a fórmula e, se não, troca o separador.
 - **Preparar para arquivo**: depois do evento, antes de fazer a cópia de
   arquivo, deixa só o DDD nos telefones de todas as abas (o DDD serve
   para as estatísticas de público). Pede para digitar ARQUIVAR, e não dá
@@ -730,8 +742,9 @@ desses e-mails.
   planilha original, mantendo os cabeçalhos. A cópia nasce sem o
   histórico de versões, então não guarda os telefones completos; a
   planilha original guarda no histórico de versões dela.
-- **Correção de notas e desempates** não ficam aqui: ficam nas telas do
-  Arco e do Machado, em Competições (seção 10).
+- **Correção de notas e desempates** não ficam aqui: a correção fica nas
+  telas do Arco e do Machado, em Competições, e o desempate fica em
+  Resultados (seção 10).
 
 ## 10.3. Testes automáticos (v3)
 
@@ -769,7 +782,8 @@ Preparada para o próximo evento, a partir de uma revisão completa da v2:
 - **Correção de nota** pela organização (corrigir ou limpar), com
   registro de quem corrigiu e quando.
 - **Empates** no Top 3 do Arco e do Machado, com desempate registrado
-  pela organização; nas demais atividades, "A definir" no pódio.
+  pela organização em Resultados, olhando as fotos dos alvos; nas demais
+  atividades, "A definir" no pódio.
 - **Posições**: trocar e reordenar de uma vez, apagar posição, enviar só o
   que mudou e gravar tudo numa chamada só.
 - **Pessoa certa**: notas e posições são gravadas pelo código de

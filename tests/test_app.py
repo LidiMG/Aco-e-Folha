@@ -387,10 +387,22 @@ def test_organizacao_registra_desempate_e_equipe_nao(planilha, equipe, organizac
     assert "Duda" in pagina and "Caio" not in pagina and "decidido no desempate" in pagina
 
 
-def test_desempate_aparece_so_para_a_organizacao(planilha, equipe, organizacao):
+def test_desempate_fica_em_resultados_e_so_para_a_organizacao(planilha, anonimo, equipe, organizacao):
     _arco_com_empate(planilha)
-    assert "Salvar desempate" not in equipe.get("/competicoes/arco_flecha").get_data(as_text=True)
-    assert "Salvar desempate" in organizacao.get("/competicoes/arco_flecha").get_data(as_text=True)
+    assert "Salvar desempate" not in anonimo.get("/resultados/arco_flecha").get_data(as_text=True)
+    assert "Salvar desempate" not in equipe.get("/resultados/arco_flecha").get_data(as_text=True)
+    assert "Salvar desempate" not in organizacao.get("/competicoes/arco_flecha").get_data(as_text=True)
+    assert "Salvar desempate" in organizacao.get("/resultados/arco_flecha").get_data(as_text=True)
+
+
+def test_desempate_resolvido_continua_editavel_com_quem_ficou_em_4o(planilha, organizacao):
+    aba = _arco_com_empate(planilha)
+    for linha in aba.dados[1:]:
+        if linha[0] in ("Caio", "Duda"):
+            linha[aba.coluna("desempate")] = 1 if linha[0] == "Duda" else 2
+    pagina = organizacao.get("/resultados/arco_flecha").get_data(as_text=True)
+    secao = pagina[pagina.index("Desempate</h2>"):]
+    assert "Caio" in secao and "Duda" in secao
 
 
 def test_podio_por_posicao_mostra_a_definir(planilha, anonimo):
@@ -428,30 +440,47 @@ def test_organizacao_corrige_e_limpa_nota(planilha, equipe, organizacao):
 # Administração — trocas, arquivo e resumo
 # ---------------------------------------------------------------------------
 
-def test_troca_no_treino_com_diferenca(planilha, administracao):
-    resposta = administracao.post("/administracao/troca", json={
-        "id_troca": "77777777",
-        "sai": {"atividade": "arremesso_machado", "modo": "Treino"},
-        "entra": {"atividade": "arco_flecha", "modo": "Treino"},
-        "forma_diferenca": "PIX",
-    })
-    assert resposta.get_json()["ok"]
-    linhas = planilha.aba("aquisicao").linhas()
+def trocar(cliente, dados, foto=None):
+    corpo = {"dados": json.dumps(dados)}
+    if foto is not None:
+        corpo["foto"] = (io.BytesIO(foto), "comprovante.jpg", "image/jpeg")
+    return cliente.post("/administracao/troca", data=corpo, content_type="multipart/form-data")
+
+
+def test_troca_no_treino_com_diferenca_e_comprovante(planilha, administracao, equipe, drive):
+    comprar(equipe, [{"activity": "arremesso_machado", "modo": "Treino", "quantidade": 1}])
+    dados = {"id_troca": "77777777", "sai": {"atividade": "arremesso_machado", "modo": "Treino"},
+             "entra": {"atividade": "arco_flecha", "modo": "Treino"}, "forma_diferenca": "PIX"}
+    assert trocar(administracao, dados, foto=foto_jpeg()).get_json()["ok"]
+    linhas = planilha.aba("aquisicao").linhas()[1:]
     assert [(l["atividade"], l["quantidade"], l["valor_total"], l["forma_pagamento"]) for l in linhas] == [
         ("Arremesso de Machado", -1, -10.0, "Troca"),
         ("Arco e Flecha", 1, 10.0, "Troca"),
         ("Arco e Flecha", 0, 10.0, "PIX"),
     ]
+    assert linhas[2]["link_foto"].startswith("https://drive.google.com/") and drive[0]["pasta"] == "pastaComprovantes"
     # Clicar de novo não registra outra troca.
-    administracao.post("/administracao/troca", json={
-        "id_troca": "77777777", "sai": {"atividade": "arremesso_machado", "modo": "Treino"},
-        "entra": {"atividade": "arco_flecha", "modo": "Treino"}, "forma_diferenca": "PIX"})
-    assert len(planilha.aba("aquisicao").linhas()) == 3
+    trocar(administracao, dados)
+    assert len(planilha.aba("aquisicao").linhas()) == 4
+
+
+def test_troca_no_treino_sem_compra_disponivel_e_recusada(planilha, administracao, equipe):
+    comprar(equipe, [{"activity": "arremesso_machado", "modo": "Treino", "quantidade": 1}])
+    dados = {"sai": {"atividade": "arremesso_machado", "modo": "Treino"},
+             "entra": {"atividade": "swordplay", "modo": "Treino"}}
+    assert trocar(administracao, dados).get_json()["ok"]
+    segunda = trocar(administracao, dados)
+    assert segunda.status_code == 400 and "disponível para trocar" in segunda.get_json()["errors"][0]
+    sem_compra = trocar(administracao, {"sai": {"atividade": "swordplay", "modo": "Treino"},
+                                        "entra": {"atividade": "arco_flecha", "modo": "Treino"},
+                                        "forma_diferenca": "PIX"})
+    # Swordplay Treino agora tem saldo 1 (veio da troca): essa pode.
+    assert sem_compra.get_json()["ok"]
 
 
 def test_troca_na_competicao_move_a_pessoa_de_lista(planilha, administracao, equipe):
     preencher(planilha, "swordplay", [{"nome": "Gil", "telefone": "51988887777", "id_inscricao": "g1-1"}])
-    resposta = administracao.post("/administracao/troca", json={
+    resposta = trocar(administracao, {
         "sai": {"atividade": "swordplay", "modo": "Competição", "row": 2, "id_inscricao": "g1-1", "nome": "Gil"},
         "entra": {"atividade": "rachar_lenha", "modo": "Competição", "nome": "Gil", "telefone": "51988887777"},
     })
@@ -465,7 +494,7 @@ def test_troca_na_competicao_move_a_pessoa_de_lista(planilha, administracao, equ
 
 def test_quem_ja_competiu_nao_pode_trocar(planilha, administracao):
     preencher(planilha, "swordplay", [{"nome": "Gil", "posicao": 2, "id_inscricao": "g1-1"}])
-    resposta = administracao.post("/administracao/troca", json={
+    resposta = trocar(administracao, {
         "sai": {"atividade": "swordplay", "modo": "Competição", "row": 2, "id_inscricao": "g1-1", "nome": "Gil"},
         "entra": {"atividade": "swordplay", "modo": "Treino"},
     })
@@ -480,12 +509,19 @@ def test_preparar_para_arquivo_deixa_so_o_ddd(planilha, administracao):
     assert [l["telefone"] for l in planilha.aba("swordplay").linhas()] == ["51", "11"]
 
 
-def test_aba_resumo_e_criada_com_formulas(planilha, administracao):
+def test_aba_resumo_usa_o_separador_do_idioma_da_planilha(planilha, administracao):
     administracao.get("/administracao")
     resumo = planilha.aba("resumo").dados
     assert resumo[1] == ["Atividade", "Modo", "Quantidade", "Valor"]
-    assert resumo[2][2].startswith("=SUMIFS(aquisicao!$E:$E,aquisicao!$C:$C,\"Arco e Flecha\"")
-    assert any(l[0] == "PIX" and l[3].startswith("=SUMIF(aquisicao!$H:$H,\"PIX\"") for l in resumo)
+    assert resumo[2][2].startswith('=SUMIFS(aquisicao!$E:$E;aquisicao!$C:$C;"Arco e Flecha"')
+    assert any(l[0] == "PIX" and l[3].startswith('=SUMIF(aquisicao!$H:$H;"PIX"') for l in resumo)
+
+
+def test_aba_resumo_troca_de_separador_se_o_google_der_erro(planilha, administracao, monkeypatch):
+    # Idioma informado não bate com o da planilha: o app percebe o erro e corrige.
+    monkeypatch.setattr(type(planilha), "locale", "en_US")
+    administracao.get("/administracao")
+    assert ";" in planilha.aba("resumo").dados[2][2]
 
 
 def test_so_ddd():

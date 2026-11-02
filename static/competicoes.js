@@ -274,36 +274,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // --- Desempate (v3) — só aparece para a organização ----------------------
-  document.querySelectorAll(".desempate-grupo").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      hideErrors();
-      const itens = Array.from(form.querySelectorAll(".desempate-grupo__linha")).map((linha) =>
-        Object.assign(identificacao(linha), { ordem: linha.querySelector(".input-ordem").value.trim() })
-      );
-      const botao = form.querySelector("button[type=submit]");
-      botao.disabled = true;
-      botao.textContent = "Salvando...";
-      try {
-        const data = await window.enviarAoServidor(`/competicoes/${tela.dataset.key}/desempate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ itens }),
-        });
-        if (data.ok) {
-          location.reload();
-          return;
-        }
-        showErrors(data.errors || ["Erro desconhecido ao salvar. Tente novamente."]);
-      } catch (err) {
-        showErrors([err.message || "Falha de conexão.", "Toque em Salvar desempate de novo."]);
-      }
-      botao.disabled = false;
-      botao.textContent = "Salvar desempate";
-    });
-  });
-
   // ------------------------------------------------------------------
   // Tela de posição no ranking (Swordplay, Rachar Lenha e as culturais)
   // ------------------------------------------------------------------

@@ -37,32 +37,6 @@
     aparecem ao <a href="javascript:location.reload()">atualizar a página</a>.
   </p>
 
-  {% if empates %}
-  <section class="card desempate">
-    <h2 class="section-title">Desempate</h2>
-    <p class="section-hint">
-      Empates que valem pódio. Depois de decidir pelas fotos dos alvos,
-      informe a ordem de cada um (1 = quem fica na frente) e salve.
-    </p>
-    {% for grupo in empates %}
-    <form class="desempate-grupo">
-      <p class="desempate-grupo__titulo">
-        {{ grupo[0].total }} pontos · a partir do {{ grupo | map(attribute='_posicao') | min }}º lugar
-        {% if grupo[0]._desempatado %}<span class="selo selo--ok">desempatado</span>{% else %}<span class="selo">empate</span>{% endif %}
-      </p>
-      {% for r in grupo %}
-      <label class="desempate-grupo__linha" data-row="{{ r._row }}" data-id="{{ r.id_inscricao }}" data-nome="{{ r.nome }}">
-        <span class="desempate-grupo__nome">{{ r.nome }}{% if r._duplicado %} <small>({{ r.telefone }})</small>{% endif %}</span>
-        <input type="number" class="input-ordem" inputmode="numeric" min="1" max="{{ grupo | length }}" step="1"
-               value="{{ r.desempate }}" aria-label="Ordem de {{ r.nome }} no desempate">
-      </label>
-      {% endfor %}
-      <button type="submit" class="btn btn--primary btn--small">Salvar desempate</button>
-    </form>
-    {% endfor %}
-  </section>
-  {% endif %}
-
   {% if not rows %}
   <p class="empty-hint">Ninguém inscrito nesta atividade ainda.</p>
   {% endif %}
