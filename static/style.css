@@ -1211,3 +1211,74 @@ input[type="tel"],
   font-weight: 400;
   color: var(--color-ink-soft);
 }
+
+/* --- v3: Resumo do evento ----------------------------------------------- */
+
+
+
+.resumo-total {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 18px;
+  margin-bottom: 12px;
+  background: var(--color-primary);
+  border-radius: 12px;
+  color: #fff;
+}
+
+.resumo-total__rotulo { font-size: 0.9rem; color: #E7EEE1; font-weight: 600; }
+.resumo-total__valor { font-family: var(--font-display); font-weight: 700; font-size: 1.8rem; }
+.resumo-total__detalhe { font-size: 0.85rem; color: #D8DFC9; }
+
+.resumo-formas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.resumo-forma {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.resumo-forma__rotulo { font-size: 0.85rem; color: var(--color-ink-soft); font-weight: 600; }
+.resumo-forma__valor { font-weight: 700; font-size: 1.1rem; color: var(--color-primary-dark); }
+
+.resumo-lista {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  margin: 8px 0 12px;
+}
+
+.resumo-linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.resumo-linha:first-child { border-top: none; }
+.resumo-linha--vazia { opacity: 0.5; }
+.resumo-linha__icone { width: 24px; text-align: center; }
+.resumo-linha__nome { flex: 1; font-weight: 600; }
+.resumo-linha__nome small { font-weight: 400; color: var(--color-ink-soft); }
+.resumo-linha__qtd { min-width: 28px; text-align: right; font-weight: 700; color: var(--color-ink-soft); }
+.resumo-linha__valor { min-width: 86px; text-align: right; font-weight: 700; color: var(--color-primary-dark); white-space: nowrap; }
+
+.resumo-subtitulo {
+  font-size: 0.95rem;
+  margin: 0;
+  color: var(--color-primary-dark);
+}

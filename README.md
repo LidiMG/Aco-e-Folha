@@ -44,7 +44,7 @@ administração):
   lançado em Competições, com os empates indicados. É aqui, junto das
   fotos dos alvos, que a organização registra os desempates.
 - **Administração** (`/administracao`, só para o e-mail da administração)
-  — trocas de atividade, aba de resumo da planilha e o preparo da
+  — resumo do evento (totais), trocas de atividade e o preparo da
   planilha para arquivo depois do evento (seção 10.2).
 
 ### Mapa do sistema (PDF)
@@ -726,11 +726,15 @@ desses e-mails.
   atividade e modo para trocar (as compras menos as trocas já feitas); se
   não existir, recusa. Tocar em "Registrar" duas vezes não registra duas
   trocas.
-- **Resumo do evento**: a aba `resumo` da planilha, com quantidade e
-  valor por atividade e modo, total em PIX, em Dinheiro e geral, já
-  considerando as trocas. As fórmulas são do app: a aba é criada e
-  refeita sempre que a Administração abre (e uma vez depois da primeira
-  compra de cada processo). Se for apagada, volta sozinha. As funções vão
+- **Resumo do evento**: os totais aparecem em dois lugares, com os mesmos
+  números, já considerando as trocas:
+  - no app, no topo da Administração: total do evento, PIX, Dinheiro,
+    número de compras e de trocas, e quantidade e valor de cada
+    atividade. É calculado na hora a partir da aba `aquisicao` (com até 30
+    segundos de atraso; o link "atualizar agora" busca o mais recente);
+  - na planilha, na aba `resumo`, com fórmulas. As fórmulas são do app: a
+    aba é criada e refeita (em segundo plano) sempre que a Administração
+    abre, e uma vez depois da primeira compra de cada processo. Se for apagada, volta sozinha. As funções vão
   com o nome em inglês (a planilha mostra traduzido: `SOMASES`) e com o
   separador do idioma da planilha (ponto e vírgula em português); o app
   confere se o Google entendeu a fórmula e, se não, troca o separador.
@@ -792,6 +796,11 @@ Preparada para o próximo evento, a partir de uma revisão completa da v2:
 - **Administração**: troca de atividade (treino e competição), aba
   `resumo` com fórmulas prontas e preparo da planilha para arquivo (só o
   DDD).
+- **Resumo do evento no app**, no topo da Administração.
+- **Velocidade**: a lista do instrutor faz as duas leituras ao mesmo
+  tempo, a compra com foto faz uma conferência a menos, a autorização do
+  Drive é renovada uma vez só por processo e a Administração abre sem
+  esperar a aba resumo.
 - **Compra**: horário de Brasília, preço conferido no envio, aviso de
   código reaproveitado com outros dados, prazo para gravar e valores
   gravados como números.

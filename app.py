@@ -308,29 +308,42 @@ def get_drive_service():
     service = getattr(_drive_local, "service", None)
     if service is None:
         from googleapiclient.discovery import build
-        from google.oauth2.credentials import Credentials
-        from google.auth.transport.requests import Request as GoogleAuthRequest
-
-        if not os.path.exists(GOOGLE_DRIVE_TOKEN_FILE):
-            raise RuntimeError(
-                f"Autorização do Drive não encontrada ({GOOGLE_DRIVE_TOKEN_FILE}). "
-                "Rode 'python setup_drive_auth.py' uma vez, na sua máquina, para autorizar."
-            )
-
-        creds = Credentials.from_authorized_user_file(GOOGLE_DRIVE_TOKEN_FILE, DRIVE_UPLOAD_SCOPES)
-        if creds.expired and creds.refresh_token:
-            creds.refresh(GoogleAuthRequest())
-            # No Render o arquivo é "só leitura" (Secret Files): a renovação
-            # vale só na memória, o que basta — na próxima vez renova de novo.
-            try:
-                with open(GOOGLE_DRIVE_TOKEN_FILE, "w") as f:
-                    f.write(creds.to_json())
-            except OSError:
-                pass
-
-        service = build("drive", "v3", credentials=creds, cache_discovery=False)
+        service = build("drive", "v3", credentials=_credencial_do_drive(), cache_discovery=False)
         _drive_local.service = service
     return service
+
+
+_drive_credencial = None
+_trava_drive_credencial = threading.Lock()
+
+
+def _credencial_do_drive():
+    """A autorização do Drive é lida e renovada UMA vez por processo e
+    compartilhada entre as threads (v3). Antes, cada thread nova renovava a
+    sua — uma ida extra ao Google na primeira foto de cada uma."""
+    global _drive_credencial
+    with _trava_drive_credencial:
+        if _drive_credencial is None:
+            from google.oauth2.credentials import Credentials
+            from google.auth.transport.requests import Request as GoogleAuthRequest
+
+            if not os.path.exists(GOOGLE_DRIVE_TOKEN_FILE):
+                raise RuntimeError(
+                    f"Autorização do Drive não encontrada ({GOOGLE_DRIVE_TOKEN_FILE}). "
+                    "Rode 'python setup_drive_auth.py' uma vez, na sua máquina, para autorizar."
+                )
+            creds = Credentials.from_authorized_user_file(GOOGLE_DRIVE_TOKEN_FILE, DRIVE_UPLOAD_SCOPES)
+            if creds.expired and creds.refresh_token:
+                creds.refresh(GoogleAuthRequest())
+                # No Render o arquivo é "só leitura" (Secret Files): a
+                # renovação vale só na memória, o que basta.
+                try:
+                    with open(GOOGLE_DRIVE_TOKEN_FILE, "w") as f:
+                        f.write(creds.to_json())
+                except OSError:
+                    pass
+            _drive_credencial = creds
+        return _drive_credencial
 
 
 _spreadsheet = None
@@ -742,21 +755,25 @@ def garantir_inscritos(activity_key, inscricoes):
     return len(novas)
 
 
-VALIDADE_CACHE_AQUISICAO_S = 15
+VALIDADE_CACHE_AQUISICAO_S = 30
 _cache_aquisicao = {"quando": 0.0, "linhas": None}
 _trava_cache_aquisicao = threading.Lock()
 
 
 def linhas_da_aquisicao():
-    """Linhas da aba aquisicao, guardadas em memória por 15 segundos (a
+    """Linhas da aba aquisicao, guardadas em memória por 30 segundos (a
     conferência automática roda a cada abertura de lista; sem isso, cada uma
-    gastaria uma leitura a mais da cota do Google)."""
+    gastaria uma leitura a mais da cota do Google). Os valores vêm "crus"
+    (números como números, não como o texto "R$ 10,00" que aparece na tela),
+    para as contas do Resumo funcionarem em qualquer idioma da planilha."""
     with _trava_cache_aquisicao:
         if _cache_aquisicao["linhas"] is not None and time.time() - _cache_aquisicao["quando"] < VALIDADE_CACHE_AQUISICAO_S:
             return _cache_aquisicao["linhas"]
     ws = get_worksheet()
-    valores = tentar_google(ws.get_all_values)
-    linhas = [dict(zip(SHEET_HEADERS, row + [""] * (len(SHEET_HEADERS) - len(row)))) for row in valores[1:]]
+    valores = tentar_google(ws.get_all_values, value_render_option="UNFORMATTED_VALUE")
+    linhas = [{coluna: ("" if valor is None else valor) for coluna, valor in
+               zip(SHEET_HEADERS, list(row) + [""] * (len(SHEET_HEADERS) - len(row)))}
+              for row in valores[1:]]
     with _trava_cache_aquisicao:
         _cache_aquisicao.update(quando=time.time(), linhas=linhas)
     return linhas
@@ -772,20 +789,20 @@ def inscricoes_compradas(activity_key):
     label = ACTIVITIES[activity_key]["label"]
     inscricoes = []
     for linha in linhas_da_aquisicao():
-        if linha["atividade"] != label or linha["modo"] != "Competição":
+        if str(linha["atividade"]) != label or str(linha["modo"]) != "Competição":
             continue
         quantidade = _inteiro(linha["quantidade"])
         if quantidade is None or quantidade <= 0:  # linhas de troca com -1 ficam de fora
             continue
-        id_inscricao = (linha["id_inscricao"] or "").strip()
-        nome = (linha["nome_competidor"] or "").strip()
+        id_inscricao = str(linha["id_inscricao"]).strip()
+        nome = str(linha["nome_competidor"]).strip()
         if not id_inscricao or not nome:
             continue
         inscricoes.append({
             "id_inscricao": id_inscricao,
             "nome": nome,
-            "telefone": linha["telefone_competidor"],
-            "cla": linha["cla_competidor"],
+            "telefone": str(linha["telefone_competidor"]),
+            "cla": str(linha["cla_competidor"]),
         })
     return inscricoes
 
@@ -1263,9 +1280,13 @@ def competicao_pontuar(key):
 
     headers = sheet_headers_for(key, cfg)
     erro = None
+    # v3: a leitura da aba da atividade e a da aquisicao (para a conferência
+    # automática) acontecem ao mesmo tempo, e não uma depois da outra.
+    leitura_aquisicao = _em_paralelo.submit(linhas_da_aquisicao)
     try:
         brutas = read_modality_rows(cfg["sheet_name"], headers)
         try:
+            leitura_aquisicao.result(timeout=30)
             if completar_inscricoes(key, brutas):
                 brutas = read_modality_rows(cfg["sheet_name"], headers)
         except Exception as exc:  # noqa: BLE001 — a conferência é um extra; a lista aparece mesmo assim
@@ -1758,10 +1779,12 @@ def submit():
     # Com foto, ela começa a subir para o Drive ao mesmo tempo em que a
     # planilha confere se essa compra já existe.
     envio_foto = None
+    conferida_em = None
     if photo_file and photo_file.filename:
         envio_foto = _em_paralelo.submit(upload_photo_to_drive, photo_file, purchase_id, folder_id=DRIVE_FOLDER_ID)
         try:
             existente = compra_existente(purchase_id)
+            conferida_em = time.monotonic()
         except Exception as exc:  # noqa: BLE001
             return jsonify({"ok": False, "errors": [mensagem_amigavel(exc, "conferir a planilha")]}), 502
         if existente is not None:
@@ -1826,11 +1849,14 @@ def submit():
 
     try:
         ws = get_worksheet()
-        # Confere de novo logo antes de gravar: cobre o caso raro de duas
-        # tentativas da mesma compra chegando quase juntas.
-        existente = compra_existente(purchase_id, ws)
-        if existente is not None:
-            return resposta_compra_existente(purchase_id, existente, assinatura)
+        # Confere (de novo, se já conferiu antes da foto) logo antes de
+        # gravar: cobre duas tentativas da mesma compra chegando quase
+        # juntas. Se a conferência anterior foi há menos de 5 segundos, ela
+        # basta — economiza uma ida ao Google na compra com foto.
+        if conferida_em is None or time.monotonic() - conferida_em > 5:
+            existente = compra_existente(purchase_id, ws)
+            if existente is not None:
+                return resposta_compra_existente(purchase_id, existente, assinatura)
         if time.monotonic() - inicio > PRAZO_PARA_GRAVAR_S:
             app.logger.warning("Compra %s não gravada: envio passou de %ss", purchase_id, PRAZO_PARA_GRAVAR_S)
             return jsonify({"ok": False, "errors": [
@@ -1879,11 +1905,15 @@ def _tem_resultado(row):
 @app.route("/administracao")
 @exige("administracao")
 def administracao():
-    aviso_resumo = None
+    # A aba resumo da planilha é refeita em segundo plano: a tela abre na hora.
+    em_segundo_plano(_refazer_resumo_com_registro)
+    # Resumo do evento (totais) no topo da Administração.
+    if request.args.get("atualizar"):
+        esquecer_cache_aquisicao()
     try:
-        garantir_resumo()
+        resumo_dados, erro_resumo = resumo_do_evento(), None
     except Exception as exc:  # noqa: BLE001
-        aviso_resumo = mensagem_amigavel(exc, "atualizar a aba resumo")
+        resumo_dados, erro_resumo = None, mensagem_amigavel(exc, "calcular o resumo")
     atividades = []
     for key, cfg in ACTIVITIES.items():
         modos = MODE_OPTIONS if cfg["has_mode"] else [cfg["fixed_mode"]]
@@ -1900,9 +1930,70 @@ def administracao():
         "administracao.html",
         atividades=atividades,
         payment_options=PAYMENT_OPTIONS,
-        aviso_resumo=aviso_resumo,
         user_name=session.get("user_name"),
+        dados=resumo_dados,
+        erro_resumo=erro_resumo,
+        format_brl=format_brl,
     )
+
+
+def _refazer_resumo_com_registro():
+    try:
+        garantir_resumo()
+    except Exception as exc:  # noqa: BLE001
+        app.logger.error("Não consegui atualizar a aba resumo: %r", exc, exc_info=exc)
+
+
+def _valor_da_planilha(valor):
+    """Número de uma célula de valor: 10, 10.5, "R$ 10,00", "-R$ 1.234,50"."""
+    if isinstance(valor, (int, float)):
+        return float(valor)
+    texto = str(valor or "").replace("R$", "").replace(" ", "").replace("\xa0", "")
+    if not texto:
+        return 0.0
+    if "," in texto and "." in texto:
+        texto = texto.replace(".", "").replace(",", ".") if texto.rfind(",") > texto.rfind(".") else texto.replace(",", "")
+    elif "," in texto:
+        texto = texto.replace(",", ".")
+    return _numero(texto) or 0.0
+
+
+def resumo_do_evento():
+    """Totais do evento calculados direto da aba aquisicao (v3) — os mesmos
+    números da aba resumo da planilha, para ver no app."""
+    atividades = []
+    por_chave = {}
+    for cfg in ACTIVITIES.values():
+        modos = MODE_OPTIONS if cfg["has_mode"] else [cfg["fixed_mode"]]
+        for m in modos:
+            item = {"atividade": cfg["label"], "modo": m, "icon": cfg.get("icon", ""),
+                    "mostrar_modo": cfg["has_mode"], "quantidade": 0, "valor": 0.0}
+            atividades.append(item)
+            por_chave[(cfg["label"], m)] = item
+    por_forma = {f: 0.0 for f in PAYMENT_OPTIONS}
+    compras, trocas = set(), set()
+    total = 0.0
+    for linha in linhas_da_aquisicao():
+        valor = _valor_da_planilha(linha["valor_total"])
+        item = por_chave.get((str(linha["atividade"]), str(linha["modo"])))
+        if item:
+            item["quantidade"] += _inteiro(linha["quantidade"]) or 0
+            item["valor"] += valor
+        forma = str(linha["forma_pagamento"])
+        if forma in por_forma:
+            por_forma[forma] += valor
+        total += valor
+        codigo = str(linha["id_compra"]).strip()
+        if codigo:
+            (trocas if str(linha["situacao"]) == SITUACAO_TROCA else compras).add(codigo)
+    return {
+        "atividades": atividades,
+        "por_forma": por_forma,
+        "total": round(total, 2),
+        "compras": len(compras),
+        "trocas": len(trocas),
+        "atualizado_em": datetime.now(FUSO_EVENTO).strftime("%H:%M"),
+    }
 
 
 @app.route("/administracao/inscritos/<key>")
@@ -2015,7 +2106,7 @@ def administracao_troca():
             esquecer_cache_aquisicao()
             saldo = sum(
                 _inteiro(l["quantidade"]) or 0 for l in linhas_da_aquisicao()
-                if l["atividade"] == sai_cfg["label"] and l["modo"] == sai_modo
+                if str(l["atividade"]) == sai_cfg["label"] and str(l["modo"]) == sai_modo
             )
         except Exception as exc:  # noqa: BLE001
             return jsonify({"ok": False, "errors": [mensagem_amigavel(exc, "conferir as compras")]}), 502

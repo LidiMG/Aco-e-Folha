@@ -530,3 +530,30 @@ def test_so_ddd():
     assert aplicativo.so_ddd(51999998888.0) == "51"
     assert aplicativo.so_ddd("51") == "51"
     assert aplicativo.so_ddd("") == ""
+
+
+# ---------------------------------------------------------------------------
+# Resumo do evento no app
+# ---------------------------------------------------------------------------
+
+def test_resumo_do_evento_soma_compras_e_trocas(planilha, equipe, organizacao, administracao):
+    comprar(equipe, [{"activity": "arremesso_machado", "modo": "Treino", "quantidade": 2}], forma="PIX", pid="aaaa0001")
+    comprar(equipe, [{"activity": "beberrao", "quantidade": 1, "competidores": [competidor("Ana")]}], pid="aaaa0002")
+    trocar(administracao, {"sai": {"atividade": "arremesso_machado", "modo": "Treino"},
+                           "entra": {"atividade": "arco_flecha", "modo": "Treino"}, "forma_diferenca": "Dinheiro"})
+    aplicativo.esquecer_cache_aquisicao()
+    dados = aplicativo.resumo_do_evento()
+    por = {(a["atividade"], a["modo"]): (a["quantidade"], a["valor"]) for a in dados["atividades"]}
+    assert por[("Arremesso de Machado", "Treino")] == (1, 10.0)
+    assert por[("Arco e Flecha", "Treino")] == (1, 20.0)
+    assert dados["por_forma"] == {"PIX": 20.0, "Dinheiro": 20.0}
+    assert (dados["total"], dados["compras"], dados["trocas"]) == (40.0, 2, 1)
+    assert organizacao.get("/administracao").status_code == 403
+    assert "R$ 40,00" in administracao.get("/administracao").get_data(as_text=True)
+
+
+def test_valor_da_planilha_entende_texto_em_reais():
+    assert aplicativo._valor_da_planilha("R$ 1.234,50") == 1234.5
+    assert aplicativo._valor_da_planilha("-R$ 10,00") == -10.0
+    assert aplicativo._valor_da_planilha(30) == 30.0
+    assert aplicativo._valor_da_planilha("") == 0.0

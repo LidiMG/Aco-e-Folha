@@ -27,6 +27,59 @@
   </div>
   <div id="successBanner" class="banner banner--success" hidden></div>
 
+  <!-- ===================== Resumo do evento ===================== -->
+  <h2 class="section-title">Resumo do evento</h2>
+  {% if erro_resumo %}
+  <div class="banner banner--error">{{ erro_resumo }}</div>
+  {% endif %}
+  {% if dados %}
+  <p class="section-hint">
+    Calculado às {{ dados.atualizado_em }} a partir da aba aquisicao —
+    <a href="{{ url_for('administracao', atualizar=1) }}">atualizar agora</a>.
+  </p>
+
+  <section class="resumo-total">
+    <span class="resumo-total__rotulo">Total do evento</span>
+    <span class="resumo-total__valor">{{ format_brl(dados.total) }}</span>
+    <span class="resumo-total__detalhe">
+      {{ dados.compras }} compra{{ 's' if dados.compras != 1 }}{% if dados.trocas %} · {{ dados.trocas }} troca{{ 's' if dados.trocas != 1 }}{% endif %}
+    </span>
+  </section>
+
+  <div class="resumo-formas">
+    {% for forma, valor in dados.por_forma.items() %}
+    <div class="resumo-forma">
+      <span class="resumo-forma__rotulo">{{ forma }}</span>
+      <span class="resumo-forma__valor">{{ format_brl(valor) }}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <h3 class="resumo-subtitulo">Por atividade</h3>
+  <div class="resumo-lista">
+    {% for item in dados.atividades %}
+    <div class="resumo-linha {{ 'resumo-linha--vazia' if not item.quantidade and not item.valor }}">
+      <span class="resumo-linha__icone" aria-hidden="true">{{ item.icon }}</span>
+      <span class="resumo-linha__nome">
+        {{ item.atividade }}{% if item.mostrar_modo %} <small>{{ item.modo }}</small>{% endif %}
+      </span>
+      <span class="resumo-linha__qtd">{{ item.quantidade }}</span>
+      <span class="resumo-linha__valor">{{ format_brl(item.valor) }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="section-hint">
+    Quantidade = inscrições/ingressos. As trocas já estão descontadas: a
+    atividade de saída perde 1 e a de entrada ganha 1; em PIX e Dinheiro
+    entra só a diferença paga.
+  </p>
+  {% endif %}
+
+  <p class="section-hint">
+    Os mesmos números ficam na aba <strong>resumo</strong> da planilha, em
+    fórmulas, refeita sempre que esta página abre — se for apagada, ela volta.
+  </p>
+
   <!-- ===================== Troca de atividade ===================== -->
   <h2 class="section-title">Trocar atividade</h2>
   <p class="section-hint">
@@ -106,18 +159,6 @@
   </p>
 
   <!-- ===================== Resumo ===================== -->
-  <h2 class="section-title">Resumo do evento</h2>
-  {% if aviso_resumo %}
-  <div class="banner banner--error">{{ aviso_resumo }}</div>
-  {% else %}
-  <p class="section-hint">
-    A aba <strong>resumo</strong> da planilha acabou de ser atualizada:
-    quantidade e valor por atividade, total em PIX, em Dinheiro e geral.
-    As fórmulas são do app — se a aba for apagada, ela volta na próxima
-    vez que esta página abrir.
-  </p>
-  {% endif %}
-
   <!-- ===================== Preparar para arquivo ===================== -->
   <h2 class="section-title">Preparar para arquivo</h2>
   <p class="section-hint">
