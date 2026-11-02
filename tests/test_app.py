@@ -565,3 +565,111 @@ def test_telefone_do_podio_so_aparece_completo_para_a_equipe(planilha, anonimo, 
     assert "51999998888" not in publico and "•••••-8888" in publico and "digitar o código" in publico
     assert "51999998888" in equipe.get("/resultados/swordplay").get_data(as_text=True)
     assert "51999998888" in organizacao.get("/resultados/swordplay").get_data(as_text=True)
+
+
+# ---------------------------------------------------------------------------
+# Uma inscrição por pessoa em cada competição
+# ---------------------------------------------------------------------------
+
+def _arco(*pessoas):
+    return [{"activity": "arco_flecha", "modo": "Competição", "quantidade": len(pessoas),
+             "competidores": [competidor(n, t) for n, t in pessoas]}]
+
+
+def test_mesma_pessoa_na_mesma_competicao_e_bloqueada(planilha, equipe):
+    assert comprar(equipe, _arco(("Ana Souza", "51999998888")), pid="aaaa0001").get_json()["ok"]
+    resposta = comprar(equipe, _arco(("ana  SOUZA", "(51) 99999-8888")), pid="aaaa0002")
+    assert resposta.status_code == 409 and "já tem inscrição" in resposta.get_json()["errors"][0]
+    assert len(planilha.aba("aquisicao").linhas()) == 1
+
+
+def test_irmaos_com_o_telefone_do_pai_passam(planilha, equipe):
+    assert comprar(equipe, _arco(("Pedro Silva", "51988887777"), ("Paulo Silva", "51988887777"))).get_json()["ok"]
+
+
+def test_duas_partes_do_nome_em_comum_com_mesmo_telefone_bloqueia(planilha, equipe):
+    comprar(equipe, _arco(("Ana Souza", "51977776666")), pid="aaaa0001")
+    resposta = comprar(equipe, _arco(("Ana Souza Lima", "51977776666")), pid="aaaa0002")
+    assert resposta.status_code == 409 and "Ana Souza" in resposta.get_json()["errors"][0]
+
+
+def test_uma_parte_so_em_comum_deixa_passar(planilha, equipe):
+    comprar(equipe, _arco(("Luiz Becker", "51977776666")), pid="aaaa0001")
+    assert comprar(equipe, _arco(("Luis Becker", "51977776666")), pid="aaaa0002").get_json()["ok"]
+
+
+def test_conectivos_nao_contam_como_parte_do_nome(planilha, equipe):
+    comprar(equipe, _arco(("Maria da Silva", "51966665555")), pid="aaaa0001")
+    assert comprar(equipe, _arco(("Ana da Silva", "51966665555")), pid="aaaa0002").get_json()["ok"]
+
+
+def test_mesmo_nome_com_outro_telefone_e_homonimo(planilha, equipe):
+    comprar(equipe, _arco(("Bia Ferro", "51911112222")), pid="aaaa0001")
+    assert comprar(equipe, _arco(("Bia Ferro", "54933334444")), pid="aaaa0002").get_json()["ok"]
+
+
+def test_vale_entre_compras_de_atendentes_diferentes(planilha, equipe):
+    outro = aplicativo.app.test_client()
+    outro.set_cookie(aplicativo.COOKIE_CODIGO, aplicativo._marca_do_codigo("4321"))
+    with outro.session_transaction() as sessao:
+        sessao["user_email"] = "outro.atendente@exemplo.com"
+    comprar(outro, _arco(("Caio Duarte", "51944440000")), pid="aaaa0001")
+    assert comprar(equipe, _arco(("caio duarte", "51944440000")), pid="aaaa0002").status_code == 409
+
+
+def test_mesma_pessoa_duas_vezes_na_mesma_compra_e_bloqueada(planilha, equipe):
+    resposta = comprar(equipe, _arco(("Caio Duarte", "51955554444"), ("Caio Duarte", "51955554444")))
+    assert resposta.status_code == 409 and "nesta mesma compra" in resposta.get_json()["errors"][0]
+
+
+def test_mesma_pessoa_pode_competir_em_competicoes_diferentes(planilha, equipe):
+    comprar(equipe, _arco(("Duda Reis", "51944443333")), pid="aaaa0001")
+    outra = [{"activity": "arremesso_machado", "modo": "Competição", "quantidade": 1,
+              "competidores": [competidor("Duda Reis", "51944443333")]}]
+    assert comprar(equipe, outra, pid="aaaa0002").get_json()["ok"]
+
+
+def test_reenvio_da_mesma_compra_nao_vira_inscricao_repetida(planilha, equipe):
+    itens = _arco(("Eva Lima", "51933332222"))
+    assert comprar(equipe, itens).get_json()["ok"]
+    de_novo = comprar(equipe, itens).get_json()
+    assert de_novo["ok"] and de_novo["ja_registrada"]
+
+
+def test_quem_saiu_por_troca_pode_se_inscrever_de_novo(planilha, equipe, administracao):
+    comprar(equipe, [{"activity": "swordplay", "modo": "Competição", "quantidade": 1,
+                      "competidores": [competidor("Gil Torres", "51922221111")]}], pid="aaaa0001")
+    aplicativo.garantir_inscritos("swordplay", [{"id_inscricao": "aaaa0001-1", "nome": "Gil Torres",
+                                                 "telefone": "51922221111", "cla": ""}])
+    trocar(administracao, {"sai": {"atividade": "swordplay", "modo": "Competição", "row": 2,
+                                   "id_inscricao": "aaaa0001-1", "nome": "Gil Torres"},
+                           "entra": {"atividade": "swordplay", "modo": "Treino"}})
+    volta = comprar(equipe, [{"activity": "swordplay", "modo": "Competição", "quantidade": 1,
+                              "competidores": [competidor("Gil Torres", "51922221111")]}], pid="aaaa0002")
+    assert volta.get_json()["ok"]
+
+
+def test_troca_para_competicao_onde_a_pessoa_ja_esta_e_bloqueada(planilha, equipe, administracao):
+    comprar(equipe, _arco(("Hana Lima", "51911110000")), pid="aaaa0001")
+    comprar(equipe, [{"activity": "swordplay", "modo": "Treino", "quantidade": 1}], pid="aaaa0002")
+    resposta = trocar(administracao, {"sai": {"atividade": "swordplay", "modo": "Treino"},
+                                      "entra": {"atividade": "arco_flecha", "modo": "Competição",
+                                                "nome": "Hana Lima", "telefone": "51911110000"},
+                                      "forma_diferenca": "PIX"})
+    assert resposta.status_code == 409 and "já tem inscrição" in resposta.get_json()["errors"][0]
+
+
+# ---------------------------------------------------------------------------
+# Proteções da página
+# ---------------------------------------------------------------------------
+
+def test_app_nao_pode_ser_exibido_dentro_de_outro_site(planilha, anonimo):
+    resposta = anonimo.get("/")
+    assert resposta.headers["X-Frame-Options"] == "DENY"
+    assert "frame-ancestors 'none'" in resposta.headers["Content-Security-Policy"]
+
+
+def test_administracao_avisa_quando_o_codigo_da_equipe_falta(planilha, administracao, monkeypatch):
+    assert "não está" not in administracao.get("/administracao").get_data(as_text=True).split("Trocar atividade")[0]
+    monkeypatch.setattr(aplicativo, "CODIGO_EQUIPE", "")
+    assert "CODIGO_EQUIPE" in administracao.get("/administracao").get_data(as_text=True)

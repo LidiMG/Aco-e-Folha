@@ -8,6 +8,7 @@ import hmac
 import socket
 import time
 import hashlib
+import unicodedata
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
@@ -210,6 +211,22 @@ def mascarar_telefone(telefone):
     """Telefone para o público (v3): só os 4 últimos dígitos (•••••-8888)."""
     digitos = "".join(ch for ch in str(telefone or "") if ch.isdigit())
     return f"•••••-{digitos[-4:]}" if len(digitos) >= 4 else ""
+
+
+if os.environ.get("RENDER") and not CODIGO_EQUIPE:
+    app.logger.warning("CODIGO_EQUIPE não está definido: Competições e Aquisição estão sem código!")
+
+
+@app.after_request
+def cabecalhos_de_seguranca(resposta):
+    """v3: o app não pode ser exibido dentro de outro site (um truque usado
+    para enganar quem toca nos botões), e o navegador não "adivinha" tipos
+    de arquivo. A rota das fotos já define a política dela."""
+    resposta.headers.setdefault("X-Frame-Options", "DENY")
+    resposta.headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'")
+    resposta.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resposta.headers.setdefault("Referrer-Policy", "same-origin")
+    return resposta
 
 
 @app.context_processor
@@ -926,6 +943,100 @@ def _digitos(texto):
 
 def telefone_valido(telefone):
     return 10 <= len(_digitos(telefone)) <= 11
+
+
+# ---------------------------------------------------------------------------
+# Uma inscrição por pessoa em cada competição (v3)
+# ---------------------------------------------------------------------------
+# Nem o nome nem o telefone resolvem sozinhos: irmãos podem usar o telefone
+# do pai ou da mãe, e homônimos existem. A regra combinada com a organização:
+#   - mesmo telefone e mesmo nome (sem acento/maiúsculas/espaços) -> bloqueia;
+#   - mesmo telefone e DUAS ou mais partes do nome em comum
+#     ("Ana Souza" x "Ana Souza Lima") -> bloqueia;
+#   - mesmo telefone e só uma parte em comum ("Pedro Silva" x "Paulo
+#     Silva", os irmãos) -> deixa passar;
+#   - mesmo nome com outro telefone (homônimo) -> deixa passar.
+# Conectivos (de, da, do...) não contam como parte do nome: sem isso,
+# "Maria da Silva" e "Ana da Silva" teriam duas partes em comum.
+CONECTIVOS_DO_NOME = {"de", "da", "do", "das", "dos", "e", "d"}
+
+
+def _nome_comparavel(nome):
+    sem_acento = unicodedata.normalize("NFKD", str(nome or "")).encode("ascii", "ignore").decode()
+    return " ".join(re.sub(r"[^a-z]", " ", sem_acento.lower()).split())
+
+
+def _telefone_comparavel(telefone):
+    digitos = _digitos(telefone)
+    if len(digitos) in (12, 13) and digitos.startswith("55"):
+        digitos = digitos[2:]
+    return digitos
+
+
+def partes_do_nome(nome_comparavel):
+    return {p for p in nome_comparavel.split() if p not in CONECTIVOS_DO_NOME and len(p) > 1}
+
+
+def mesma_pessoa(a, b):
+    """True se os dois competidores ({nome, telefone}) são a mesma pessoa pela regra acima."""
+    tel_a, tel_b = _telefone_comparavel(a["telefone"]), _telefone_comparavel(b["telefone"])
+    if not tel_a or tel_a != tel_b:
+        return False
+    nome_a, nome_b = _nome_comparavel(a["nome"]), _nome_comparavel(b["nome"])
+    return nome_a == nome_b or len(partes_do_nome(nome_a) & partes_do_nome(nome_b)) >= 2
+
+
+def inscricoes_ativas(activity_key, linhas, ignorar_compra=""):
+    """Quem está inscrito na competição segundo a aba aquisicao, já
+    descontando quem saiu por troca (a linha de saída leva o mesmo
+    id_inscricao com quantidade -1)."""
+    label = ACTIVITIES[activity_key]["label"]
+    por_id, sem_id = {}, []
+    for l in linhas:
+        if str(l["atividade"]) != label or str(l["modo"]) != "Competição":
+            continue
+        if ignorar_compra and str(l["id_compra"]).strip() == ignorar_compra:
+            continue
+        quantidade = _inteiro(l["quantidade"]) or 0
+        id_inscricao = str(l["id_inscricao"]).strip()
+        dados = {"nome": str(l["nome_competidor"]).strip(), "telefone": str(l["telefone_competidor"]),
+                 "id_compra": str(l["id_compra"]).strip()}
+        if not id_inscricao:  # linhas antigas, sem código de inscrição
+            if quantidade > 0 and dados["nome"]:
+                sem_id.append(dados)
+            continue
+        item = por_id.setdefault(id_inscricao, {"saldo": 0, "nome": ""})
+        item["saldo"] += quantidade
+        if quantidade > 0:
+            item.update(dados)
+    return [i for i in por_id.values() if i["saldo"] > 0 and i["nome"]] + sem_id
+
+
+def conferir_repetidos(novos_por_atividade, linhas, ignorar_compra=""):
+    """Compara os novos competidores com quem já está inscrito em cada
+    competição (em qualquer compra) e entre si. Devolve a lista de bloqueios."""
+    bloqueios = []
+    for key, competidores in novos_por_atividade.items():
+        label = ACTIVITIES[key]["label"]
+        ja_inscritos = [dict(i, origem=f" (compra {i['id_compra']})" if i.get("id_compra") else "")
+                        for i in inscricoes_ativas(key, linhas, ignorar_compra)]
+        for c in competidores:
+            igual = next((e for e in ja_inscritos if mesma_pessoa(c, e)), None)
+            if igual:
+                complemento = "" if _nome_comparavel(igual["nome"]) == _nome_comparavel(c["nome"]) \
+                    else f" (como “{igual['nome']}”, com o mesmo telefone)"
+                bloqueios.append(f"{c['nome']} já tem inscrição em {label}{complemento}{igual['origem']}. "
+                                 "Cada pessoa compete uma vez só em cada competição.")
+            ja_inscritos.append(dict(c, origem=" nesta mesma compra", id_compra=""))
+    return bloqueios
+
+
+def resposta_repetidos(bloqueios):
+    """Resposta para a tela quando há inscrição repetida (ou None se não há)."""
+    if not bloqueios:
+        return None
+    return jsonify({"ok": False, "errors": bloqueios + [
+        "Retire essa pessoa da compra (ou corrija o nome/telefone, se foi engano de digitação)."]}), 409
 
 
 def validate_submission(activities_payload, photo_file, forma_pagamento):
@@ -1783,6 +1894,22 @@ def submit():
         purchase_id = uuid.uuid4().hex[:8]  # celular com app antigo: gera aqui
     assinatura = calcular_assinatura(activities_payload, forma_pagamento)
 
+    # v3: cada pessoa compete uma vez só em cada competição. Lê a aba
+    # aquisicao na hora (não da memória), para pegar compras feitas agora há
+    # pouco por outro atendente.
+    novos = {i["activity"]: i["competidores"] for i in activities_payload if i.get("competidores")}
+    if novos:
+        try:
+            esquecer_cache_aquisicao()
+            linhas = linhas_da_aquisicao()
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"ok": False, "errors": [mensagem_amigavel(exc, "conferir as inscrições")]}), 502
+        ja_salva = any(str(l["id_compra"]).strip() == purchase_id for l in linhas)
+        if not ja_salva:  # nova tentativa de uma compra já salva: segue para "já registrada"
+            recusa = resposta_repetidos(conferir_repetidos(novos, linhas))
+            if recusa:
+                return recusa
+
     # Com foto, ela começa a subir para o Drive ao mesmo tempo em que a
     # planilha confere se essa compra já existe.
     envio_foto = None
@@ -1939,6 +2066,7 @@ def administracao():
         payment_options=PAYMENT_OPTIONS,
         user_name=session.get("user_name"),
         dados=resumo_dados,
+        sem_codigo=not CODIGO_EQUIPE,
         abrir_resumo=bool(request.args.get("atualizar")),
         erro_resumo=erro_resumo,
         format_brl=format_brl,
@@ -2123,6 +2251,18 @@ def administracao_troca():
                          "todas as que foram registradas já foram trocadas (ou nenhuma foi registrada).")
     if erros:
         return jsonify({"ok": False, "errors": erros}), 400
+
+    # v3: quem entra numa competição não pode já estar inscrito nela.
+    if entra_comp:
+        try:
+            esquecer_cache_aquisicao()
+            linhas = linhas_da_aquisicao()
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"ok": False, "errors": [mensagem_amigavel(exc, "conferir as inscrições")]}), 502
+        if not any(str(l["id_compra"]).strip() == id_troca for l in linhas):
+            recusa = resposta_repetidos(conferir_repetidos({entra_key: [pessoa_entrada]}, linhas))
+            if recusa:
+                return recusa
 
     rotulo_sai = f"{sai_cfg['label']} ({sai_modo})"
     rotulo_entra = f"{entra_cfg['label']} ({entra_modo})"

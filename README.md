@@ -257,7 +257,11 @@ o link definitivo é do tipo `https://SEU-SERVICO.onrender.com`).
   Build Command instalava a versão mais nova a cada deploy, e uma versão
   nova com problema poderia quebrar o deploy na véspera do evento. O
   Build Command antigo (`... && pip install pillow-heif`) continua
-  funcionando, mas pode ser simplificado.
+  funcionando, mas pode ser simplificado. Pelo mesmo motivo, o fim do
+  `requirements.txt` trava as versões dos **componentes indiretos** (os que
+  Flask, gspread e Google puxam por baixo, como Werkzeug e requests): cada
+  deploy instala exatamente o que funcionou. Para atualizar algum, troque a
+  versão ali de propósito e rode os testes.
 - **Start Command**: `gunicorn app:app --workers 2 --threads 4 --timeout 45`
   — 2 processos com 4 linhas de atendimento cada, ou seja, até 8 envios
   ao mesmo tempo. Na v1 eram 3 processos simples, e no evento, com umas 5
@@ -376,7 +380,11 @@ porta para quem só recebeu o link por acaso:
 - **Código da equipe** (`CODIGO_EQUIPE`): use só números (4 a 6). Troque a
   cada evento no painel do Render; quando ele muda, todos os celulares
   precisam digitar o novo. Para alguém novo no dia, basta passar o código.
-  Depois de 5 tentativas erradas, o celular espera 10 minutos.
+  Depois de 5 tentativas erradas, o celular espera 10 minutos. O campo
+  mostra bolinhas no lugar dos números, para quem está ao lado não ler.
+  Se a variável estiver vazia no Render, o log avisa e a Administração
+  mostra um alerta vermelho: nesse caso, Competições e Aquisição ficam
+  abertas para qualquer pessoa com o link.
 - **Organização e administração**: os e-mails ficam só nas variáveis do
   Render (nunca no código). Mais de um e-mail: separe por vírgula. O
   organizador entra pela tela do código, no link "É da organização?
@@ -577,6 +585,26 @@ a página. Ninguém é incluído duas vezes (a comparação é pelo
   Beberrão e Rachar Lenha), quem estava com a tela aberta recebe o aviso
   "Os preços foram atualizados", com um botão para atualizar a página — o
   que foi preenchido volta sozinho, já com o total certo.
+- **Uma inscrição por pessoa em cada competição (v3)**: antes de gravar,
+  o app compara cada competidor com quem já está inscrito naquela
+  competição em **qualquer compra**, de qualquer atendente (lendo a aba
+  `aquisicao` na hora), e com os outros da mesma compra. Como nem o nome
+  nem o telefone resolvem sozinhos (irmãos usam o telefone do pai ou da
+  mãe, e homônimos existem), a regra é:
+  - **mesmo telefone e mesmo nome** (ignorando acentos, maiúsculas e
+    espaços): **bloqueia**;
+  - **mesmo telefone e duas ou mais partes do nome em comum** ("Ana
+    Souza" e "Ana Souza Lima"): **bloqueia**;
+  - **mesmo telefone e só uma parte em comum** ("Pedro Silva" e "Paulo
+    Silva", os irmãos): **deixa passar**;
+  - **mesmo nome com outro telefone** (homônimo): **deixa passar**.
+  Conectivos (de, da, do, dos, das, e) não contam como parte do nome —
+  senão "Maria da Silva" e "Ana da Silva" seriam bloqueadas. A mensagem
+  diz com quem a pessoa já está inscrita e em qual compra. Quem saiu de uma
+  competição por troca deixa de contar como inscrito nela. A mesma regra
+  vale na troca para uma competição (Administração). Competir em
+  competições diferentes continua livre. Linhas incluídas à mão só na aba
+  da atividade (Plano B) não entram nessa conferência.
 - **Mesmo código, outra compra (v3)**: se um envio dá erro mas a compra
   tinha chegado, e o atendente altera a tela e reenvia, o app não diz mais
   "já registrada" (o que fazia a alteração se perder em silêncio): avisa
@@ -803,6 +831,11 @@ Preparada para o próximo evento, a partir de uma revisão completa da v2:
 - **Resumo do evento no app**, na Administração.
 - **Telefones do pódio mascarados** para o público (•••••-8888); completos
   só para a equipe, a organização e a administração.
+- **Uma inscrição por pessoa em cada competição**: mesmo telefone com o
+  mesmo nome, ou com duas partes do nome em comum, é bloqueado.
+- **Proteções extras**: código da equipe digitado com bolinhas, alerta se
+  o código não estiver configurado, o app não pode ser exibido dentro de
+  outro site, e componentes indiretos com versão travada.
 - **Velocidade**: a lista do instrutor faz as duas leituras ao mesmo
   tempo, a compra com foto faz uma conferência a menos, a autorização do
   Drive é renovada uma vez só por processo e a Administração abre sem

@@ -9,3 +9,36 @@ gunicorn==22.0.0
 # Fotos .heic de iPhone. Só no Linux (Render): no Windows ele exige compilar
 # C++ e trava a instalação, então lá ele é pulado automaticamente.
 pillow-heif==1.8.0; sys_platform == "linux"
+
+# Componentes indiretos (os que os de cima puxam), travados nas versões
+# que funcionaram no Render em nov/2026 (v3). Sem isso, cada deploy baixava
+# a versão mais nova deles, e uma versão nova com problema poderia quebrar
+# o deploy na véspera do evento. Para atualizar de propósito, troque aqui.
+Jinja2==3.1.6
+MarkupSafe==3.0.4
+Werkzeug==3.1.9
+blinker==1.9.0
+cachetools==5.5.2
+certifi==2026.10.23
+charset-normalizer==3.5.2
+click==8.5.0
+google-api-core==2.43.2
+google-auth-httplib2==0.4.4
+googleapis-common-protos==1.76.0
+httplib2==0.32.1
+idna==3.20
+itsdangerous==2.2.0
+oauthlib==4.0.1
+opentelemetry-api==1.45.2
+packaging==26.3
+proto-plus==1.29.0
+protobuf==7.36.2
+pyasn1==0.6.5
+pyasn1_modules==0.4.2
+pyparsing==3.3.3
+requests==2.34.2
+requests-oauthlib==2.0.0
+rsa==4.9.1
+typing_extensions==4.16.0
+uritemplate==4.2.0
+urllib3==2.8.0

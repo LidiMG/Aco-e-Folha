@@ -1296,3 +1296,6 @@ input[type="tel"],
 
 .resumo-detalhes__botao::-webkit-details-marker { display: none; }
 .resumo-detalhes[open] .resumo-detalhes__botao { background: var(--color-accent-soft); }
+
+/* v3: o código da equipe aparece como bolinhas enquanto é digitado */
+.codigo-form__campo { -webkit-text-security: disc; text-security: disc; }

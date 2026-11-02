@@ -22,6 +22,13 @@
 
 <main class="wrap">
 
+  {% if sem_codigo %}
+  <div class="banner banner--error">
+    <strong>Atenção:</strong> o código da equipe (<code>CODIGO_EQUIPE</code>) não está
+    configurado no Render. Competições e Aquisição estão abertas para qualquer pessoa com o link.
+  </div>
+  {% endif %}
+
   <div id="errorBanner" class="banner banner--error" hidden>
     <ul id="errorList"></ul>
   </div>
